@@ -1,27 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "build": {
-    "env": {
-      "PYTHON_VERSION": "3.12"
-    }
-  },
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
       "memory": 1024,
       "runtime": "python3.12"
     }
-  },
-  "excludeFiles": [
-    ".venv/**",
-    "tests/**",
-    "scripts/**",
-    ".idea/**",
-    ".pytest_cache/**",
-    "__pycache__/**",
-    "*.pyc",
-    "data/chroma/**",
-    "_*.py",
-    "oj_*.log"
-  ]
+  }
 }
