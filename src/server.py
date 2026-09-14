@@ -56,7 +56,7 @@ app.include_router(poster_router)
 
 
 # 限流中间件（内存令牌桶，单进程；多 worker 才需 Redis）
-_RATE_LIMIT_WHITELIST = ("/health", "/docs", "/redoc", "/openapi.json")
+_RATE_LIMIT_WHITELIST = ("/", "/health", "/docs", "/redoc", "/openapi.json")
 
 
 @app.middleware("http")
@@ -73,7 +73,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 # 可选 API Key 鉴权：配置了 AI_SERVICE_API_KEY 时强制校验 X-API-Key；
 # 未配置（开发模式）放行，便于本机前端直接调用。
-_AUTH_WHITELIST = ("/health", "/docs", "/redoc", "/openapi.json")
+_AUTH_WHITELIST = ("/", "/health", "/docs", "/redoc", "/openapi.json")
 
 
 # 审计中间件（SEC-13）：最外层包裹全部请求，记录 request_id / 客户端 IP / 端点 / 耗时 / 状态码。
@@ -127,6 +127,20 @@ async def global_exception_handler(request: Request, exc: Exception):
             "message": "服务暂时不可用，请稍后重试",
         },
     )
+
+
+# 根路径：给部署预览页 / 人工探活一个可读的 200 响应。
+# 不定义它时，访问 / 会落到 FastAPI 的默认 404（{"detail":"Not Found"}），
+# 容易被误读成「函数又崩了」—— 见 VERCEL_DEPLOY.md 6.6。
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "service": "oraclemind-ai-py",
+        "name": "玄镜 OracleMind · AI 服务",
+        "version": "0.1.0",
+        "message": "服务已就绪。健康检查：GET /health；业务接口：/api/v1/*。",
+    }
 
 
 # 健康检查
