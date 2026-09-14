@@ -20,7 +20,9 @@ tests/
 scripts/
 .idea/
 .vscode/
-_*.py
+# ⚠️ 切勿在此写 "_*.py"：gitignore 语义下 "_*" 会连 __init__.py 一起匹配，
+# 导致 src/ 下 7 个 __init__.py 全被排除（子包退化成 namespace package，
+# 包内初始化逻辑静默失效）。临时脚本已统一放 scripts/，上面一条即可覆盖。
 
 # 密钥与本地运行时数据（Vercel 上 env 走项目面板，data/*_store.json 为本地产物）
 .env

@@ -24,6 +24,12 @@ dependencies = [
     "redis>=5.0",
     "httpx>=0.27",
     "python-dotenv>=1.0",
+
+    # HTTP 异步客户端（report_agent 并行回调排盘服务）
+    "aiohttp>=3.9.0",
+
+    # 天文星历（占星模块本命盘实算，纯 Python、离线可用）
+    "PyMeeus>=0.5.12",
 ]
 
 [project.optional-dependencies]

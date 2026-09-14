@@ -30,3 +30,10 @@ pydantic-settings>=2.0
 redis>=5.0
 httpx>=0.27
 python-dotenv>=1.0
+
+# HTTP 异步客户端：src/agent/report_agent.py 用它并行回调排盘服务（模块级 import，缺则冷启动即崩）
+aiohttp>=3.9.0
+
+# 天文星历：src/services/astrology.py 用它做本命盘实算
+# （纯 Python 天文算法，无需外部星历文件、离线可用；模块级 import，缺则冷启动即崩）
+PyMeeus>=0.5.12
