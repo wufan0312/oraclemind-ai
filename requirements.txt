@@ -1,0 +1,32 @@
+# 玄镜 OracleMind · AI 服务（Python）运行时依赖
+#
+# 安装方式：pip install -r requirements.txt
+# 注意：切勿用 `pip freeze > requirements.txt` 整份导出，venv 里混入了与本项目无关的
+#       大包（如 cv2 / kubernetes 的某些构建产物），会无谓膨胀。下列为精选运行时依赖。
+#
+# ⚠️ 体积风险（务必阅读 DEPLOYMENT.md §「chromadb 体积与持久化」）：
+#    chromadb 的传递依赖会引入 kubernetes(~84MB) + onnxruntime(~45MB) +
+#    chromadb_rust_bindings(~61MB) + numpy(~55MB)，合计极易逼近/超过 Vercel 函数 500MB 上限。
+#    若部署到 Vercel 且开启 RETRIEVAL_ENABLED，请按 DEPLOYMENT.md 评估；或把 AI 服务
+#    部署到支持持久盘、无 500MB 硬限制的主机（Railway / Render / Fly.io）。
+
+# Web 框架
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sse-starlette>=2.1.0
+
+# LangChain + LangGraph
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-core>=0.3.0
+langgraph>=0.2.0
+
+# RAG 向量数据库（RAG 开启时必需；关闭 RETRIEVAL_ENABLED 可省去其运行时负担）
+chromadb>=0.5.0
+
+# 工具库
+pydantic>=2.0
+pydantic-settings>=2.0
+redis>=5.0
+httpx>=0.27
+python-dotenv>=1.0
