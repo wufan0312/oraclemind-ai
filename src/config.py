@@ -1,6 +1,16 @@
 """玄镜 OracleMind · AI 服务配置层
 
 所有配置项集中于此，读取 .env / 环境变量，禁止在业务代码中硬编码。
+
+【按环境分层加载】
+按 APP_ENV 自动选择附加的 env 文件，无需手工切换：
+    APP_ENV 未设置 / development  ->  .env.development
+    APP_ENV=production            ->  .env.production
+
+优先级（高 → 低）：
+    1. 真实环境变量（Vercel 项目面板 / 终端 export）
+    2. .env.<APP_ENV>   —— 随仓库提交的非敏感默认值（团队共享）
+    3. .env            —— 个人本地兜底（gitignore），放 API Key 等密钥
 """
 
 from __future__ import annotations
@@ -9,9 +19,58 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
-load_dotenv()
+_ENV_ROOT = Path(__file__).resolve().parents[1]  # src/config.py → 项目根
+_KNOWN_ENVS = ("development", "production", "test")
+
+
+def _current_env() -> str:
+    """读取当前环境标识。
+
+    判定顺序：
+      1. APP_ENV 显式设置且在白名单内  → 用它（Vercel 面板 / 终端 export）
+      2. 未设置，但检测到 Vercel 平台（VERCEL=1）→ production
+      3. 其余情况 → development
+
+    第 2 条是防呆：Vercel 会自动注入 VERCEL=1。若忘了在面板配 APP_ENV，
+    没有这一条就会回落 development，加载 .env.development 把 CORS 设成
+    localhost —— 线上表现为「前端跨域被拦」，且很难联想到是 env 没配。
+    """
+    def _clean(raw: str | None) -> str:
+        # 云平台面板的值常被污染（首尾空白 / 成对引号 / CRLF），先清洗再判定，
+        # 否则 APP_ENV="production" 会被判成非法值而静默回落 development。
+        s = (raw or "").strip().strip("'\"").strip()
+        return s.lower()
+
+    raw = _clean(os.environ.get("APP_ENV"))
+    if raw:
+        return raw if raw in _KNOWN_ENVS else "development"
+    if _clean(os.environ.get("VERCEL")) == "1":
+        return "production"
+    return "development"
+
+
+def _load_env_files() -> None:
+    """分层加载 env 文件，保证「真实环境变量」永远最高优先级。
+
+    实现要点：
+    - 用 dotenv_values（只读解析、不写 environ）先把两个文件合并；
+    - 再逐个写入 os.environ，且**只写当前不存在的键**。
+      这样 Vercel 面板注入的变量不会被仓库里的文件覆盖，
+      而文件之间仍能实现 .env.<APP_ENV> 覆盖 .env。
+    """
+    merged: dict[str, str] = {}
+    for name in (".env", f".env.{_current_env()}"):
+        path = _ENV_ROOT / name
+        if path.is_file():
+            merged.update(dotenv_values(path, encoding="utf-8"))
+    for key, value in merged.items():
+        if key and value is not None and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_env_files()
 
 
 def _num(key: str, default: int) -> int:
@@ -69,7 +128,9 @@ class Config:
 
     # ----- 服务 -----
     port: int = _num("PORT", 8001)
-    app_env: str = _str("APP_ENV", "development")
+    # 用 _current_env() 而非直接读 APP_ENV：面板里的值常被污染（`"production"` /
+    # CRLF），原样存下来会让 is_production 判 False，静默跳过所有生产分支。
+    app_env: str = _current_env()
     # uvicorn 代码热重载开关（默认关闭）。
     # 关闭原因：reload 会派生 reloader + worker 两个进程，worker 持有监听套接字；
     # 一旦父进程被强杀或重载异常，worker 会变成「孤儿监听」——端口被占且 taskkill

@@ -15,6 +15,8 @@ venv/
 .env.local
 .env.prod
 .env.*.local
+# 注：.env.development / .env.production 是「按 APP_ENV 分发的非敏感默认值」，
+# 已随仓库提交（克隆即用）。密钥一律走 Vercel 面板，或本地 .env。
 
 # 运行时数据（缓存 / 预算 / 向量库，均为本地产物）
 data/cache_store.json
