@@ -27,6 +27,11 @@ scripts/
 # 密钥与本地运行时数据（Vercel 上 env 走项目面板，data/*_store.json 为本地产物）
 .env
 .env.*
+# ⚠️ 但 .env.development / .env.production 是「已提交的兜底默认值」，必须上传：
+#    它们只含地址/开关类非敏感配置，src/config.py 靠它们按 APP_ENV 分层加载。
+#    少了这两个文件，线上会静默用回代码默认值（CORS 只剩 localhost、开关全回默认）。
+!.env.development
+!.env.production
 data/cache_store.json
 data/budget_store.json
 data/chroma/
