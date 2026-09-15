@@ -37,7 +37,8 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.cors_origins,
+    # 用 cors_origin_list（配置值 + 内置线上前端域名的并集），兜底面板漏配/配错
+    allow_origins=config.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -138,6 +138,16 @@ class Config:
     ai_reload: bool = _bool("AI_RELOAD", False)
     log_level: str = _str("LOG_LEVEL", "info")
     cors_origins: list[str] = _list("CORS_ORIGINS", ["http://localhost:3000"])
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """配置值 + 内置线上前端域名的并集（去重、保序）。
+
+        为什么内置：面板若留空或配错 CORS_ORIGINS，或 .env.production 未被上传到构建环境，
+        白名单会退化成 localhost —— 线上前端被静默拒绝跨域，且不产生任何报错。
+        内置域名兜底后，env 仍然生效且可继续追加，只是不再可能把线上链路打穿。
+        """
+        return list(dict.fromkeys([*self.cors_origins, "https://oraclemind-frontend.vercel.app"]))
     # 服务绑定地址：默认仅监听本机回环 127.0.0.1（安全性）；生产经反代转发时同样用回环，
     # 切勿直接暴露 0.0.0.0 到公网。确需跨机访问时再显式设为 0.0.0.0 并配合防火墙/反代。
     ai_bind_host: str = _str("AI_BIND_HOST", "127.0.0.1")
