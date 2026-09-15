@@ -25,13 +25,14 @@ scripts/
 # 包内初始化逻辑静默失效）。临时脚本已统一放 scripts/，上面一条即可覆盖。
 
 # 密钥与本地运行时数据（Vercel 上 env 走项目面板，data/*_store.json 为本地产物）
+# ⚠️ 只精确排除「含密钥」的文件，切勿写 ".env.*" 通配：
+#    那会把已提交的 .env.development / .env.production 一起排掉，
+#    线上 src/config.py 就拿不到分层配置，只能静默用代码默认值
+#    （CORS 只剩 localhost、生产开关全回默认）。
+#    注：不要用 "!.env.production" 去否定——实测 Vercel 侧该否定规则未生效。
 .env
-.env.*
-# ⚠️ 但 .env.development / .env.production 是「已提交的兜底默认值」，必须上传：
-#    它们只含地址/开关类非敏感配置，src/config.py 靠它们按 APP_ENV 分层加载。
-#    少了这两个文件，线上会静默用回代码默认值（CORS 只剩 localhost、开关全回默认）。
-!.env.development
-!.env.production
+.env.local
+.env.*.local
 data/cache_store.json
 data/budget_store.json
 data/chroma/
