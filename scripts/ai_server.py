@@ -37,6 +37,7 @@ import urllib.error
 # ---------- 路径与常量 ----------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)          # oraclemind-ai-py/
+MONOREPO_ROOT = os.path.dirname(PROJECT_ROOT)         # F:/project/oraclemind（monorepo 根）
 DEFAULT_PORT = 8021                                  # 与前端 .env.local 的 NEXT_PUBLIC_AI_API_BASE 对齐
 HEALTH_PATH = "/health"
 STARTUP_TIMEOUT = 30                                 # 秒：等待 /health 就绪
@@ -58,11 +59,15 @@ def resolve_python() -> str:
 
 
 def pidfile_path(port: int) -> str:
-    return os.path.join(PROJECT_ROOT, f".ai_server_{port}.pid")
+    p = os.path.join(MONOREPO_ROOT, "outputs", "pids", f"oj_ai_server_{port}.pid")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    return p
 
 
 def logfile_path(port: int) -> str:
-    return os.path.join(PROJECT_ROOT, f"oj_ai_server_{port}.log")
+    p = os.path.join(MONOREPO_ROOT, "outputs", "logs", f"oj_ai_server_{port}.log")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    return p
 
 
 # ---------- 端口占用检测 ----------
