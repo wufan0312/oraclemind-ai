@@ -73,6 +73,28 @@ def _load_env_files() -> None:
 _load_env_files()
 
 
+# ---------------------------------------------------------------------------
+# 代理豁免（让 LLM 域名直连，不走系统代理）
+#   本机 shell 常带 HTTP_PROXY / HTTPS_PROXY（如 Clash 127.0.0.1:7897），启动服务
+#   时子进程会**原样继承** → httpx 的 env-proxy 自动探测会让全部 LLM 请求绕代理。
+#   国内 API（智谱 bigmodel / 阿里百炼）直连更快更稳，且代理一旦挂掉会让 AI 解读
+#   整片失败（纯多余的失败点）。这里给 NO_PROXY **追加**这些域名：只追加、不覆盖
+#   已有项（真实环境变量优先级不受影响），Vercel 无代理时无副作用。
+# ---------------------------------------------------------------------------
+_PROXY_BYPASS_EXTRA = (
+    "open.bigmodel.cn",
+    ".bigmodel.cn",
+    ".aliyuncs.com",
+    ".dashscope.aliyuncs.com",
+)
+for _env_key in ("NO_PROXY", "no_proxy"):
+    _hosts = [h.strip() for h in (os.environ.get(_env_key) or "").split(",") if h.strip()]
+    for _host in _PROXY_BYPASS_EXTRA:
+        if _host not in _hosts:
+            _hosts.append(_host)
+    os.environ[_env_key] = ",".join(_hosts)
+
+
 def _num(key: str, default: int) -> int:
     v = os.environ.get(key)
     if v is None or v == "":

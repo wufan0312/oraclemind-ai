@@ -27,6 +27,37 @@ from src.services.provider import llm_provider
 
 logger = logging.getLogger(__name__)
 
+# ============================ 输出安全护栏 ============================
+# 服务端内容过滤：拦截风水/算命场景下的恐吓性、诱导消费与改运话术。
+# 前端 disclaimer 不拦截内容，真正的内容闸口必须落在服务端输出层。
+_FENGSHUI_BLOCKLIST = [
+    "血光", "伤丁", "绝嗣", "破财", "灾祸", "横祸", "凶灾", "开光", "法事",
+    "化煞", "化解", "消灾", "改命", "改运", "转运", "趋吉避凶", "趋吉",
+    "五帝铜钱", "铜葫芦", "铜麒麟", "貔貅", "金蟾", "泰山石敢当", "泰山石",
+    "八卦镜", "风水轮", "凸面镜", "铜风铃", "黄水晶", "聚宝盆", "水晶洞",
+    "招财", "催旺", "镇宅", "泄煞", "辟邪", "挡煞", "化病",
+]
+_BLOCK_RE = re.compile("|".join(re.escape(w) for w in _FENGSHUI_BLOCKLIST))
+
+
+def _sanitize(text: str) -> str:
+    """对单段文本做关键词脱敏，命中黑名单词替换为〔已过滤〕。"""
+    if not text:
+        return text
+    return _BLOCK_RE.sub("〔已过滤〕", text)
+
+
+def _sanitize_obj(o: Any) -> Any:
+    """递归脱敏 report 等结构化对象中的字符串字段。"""
+    if isinstance(o, str):
+        return _sanitize(o)
+    if isinstance(o, list):
+        return [_sanitize_obj(x) for x in o]
+    if isinstance(o, dict):
+        return {k: _sanitize_obj(v) for k, v in o.items()}
+    return o
+
+
 # 同 key 并发请求去重锁：避免缓存未写入前多个相同请求同时跑 LLM
 _report_locks: dict[str, asyncio.Lock] = {}
 
@@ -378,7 +409,7 @@ def _slim_result(module: str, data: Any) -> Any:
 async def paipan_executor(modules: list[str], birth: dict) -> dict:
     """并行执行多术数排盘，回调后端 PAIPAN_API_BASE"""
     base = config.paipan_api_base.rstrip("/")
-    body = {
+    base_body = {
         "year": birth.get("year"),
         "month": birth.get("month"),
         "day": birth.get("day"),
@@ -391,6 +422,18 @@ async def paipan_executor(modules: list[str], birth: dict) -> dict:
     errors: dict[str, str] = {}
 
     async def _one(m: str):
+        # 数字命理模块按「农历口径」排盘（与前端数字命理页 / 报告命主卡一致）；
+        # 前端带 lunarYear/lunarMonth/lunarDay 则用之，否则沿用公历（兼容老客户端）。
+        if m == "numerology":
+            ly = birth.get("lunarYear")
+            lm = birth.get("lunarMonth")
+            ld = birth.get("lunarDay")
+            if ly is not None and lm is not None and ld is not None:
+                body = {**base_body, "year": ly, "month": lm, "day": ld}
+            else:
+                body = base_body
+        else:
+            body = base_body
         url = base + PAIPAN_URLS[m]
         try:
             async with aiohttp.ClientSession() as sess:
@@ -709,7 +752,7 @@ async def _run_report_agent_inner(
                     _stage_cache_set("synthesizer", question, birth, modules, variant, synthesis)
             # 思考过程只推人类可读摘要，不再把模型原生 JSON 当 delta 推流（避免界面出现大段 JSON）
             if config.llm_available:
-                yield {"event": "delta", "data": {"chunk": _friendly_synth(synthesis, success, cross_labels) + "\n"}}
+                yield {"event": "delta", "data": {"chunk": _sanitize(_friendly_synth(synthesis, success, cross_labels)) + "\n"}}
 
             # reviewer
             yield {"event": "phase", "data": {"phase": "reviewer"}}
@@ -729,7 +772,7 @@ async def _run_report_agent_inner(
                 "notes": "解析失败，默认通过",
             }
             if config.llm_available:
-                yield {"event": "delta", "data": {"chunk": _friendly_review(review) + "\n"}}
+                yield {"event": "delta", "data": {"chunk": _sanitize(_friendly_review(review)) + "\n"}}
 
             revision += 1
             need_resynth = bool(review.get("needResynth")) and revision < 2
@@ -763,7 +806,7 @@ async def _run_report_agent_inner(
                 writer_text += ch
         report = _parse_json(writer_text)
         if config.llm_available:
-            yield {"event": "delta", "data": {"chunk": _friendly_writer() + "\n"}}
+            yield {"event": "delta", "data": {"chunk": _sanitize(_friendly_writer()) + "\n"}}
         degraded = False
         degraded_reason: Optional[str] = None
         if report is None:
@@ -793,6 +836,7 @@ async def _run_report_agent_inner(
         # （半截时间轴比没有更易误导，宁可给保守的通用三阶段）
         report["timeline"] = _normalize_timeline(report.get("timeline"))
 
+        report = _sanitize_obj(report)
         yield {"event": "meta", "data": {
             "report": report, "disclaimer": REPORT_DISCLAIMER,
             "degraded": degraded, "degradedReason": degraded_reason,
