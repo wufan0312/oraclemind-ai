@@ -11,6 +11,11 @@ import logging
 import re
 from typing import Any
 
+from src.services.json_utils import (
+    close_truncated_json as _close_truncated_json,
+    repair_json as _try_repair_json,
+)
+
 logger = logging.getLogger(__name__)
 
 # 梅花易数专用的 aspect 标题映射
@@ -738,173 +743,6 @@ def _format_complex_value(value: list | dict) -> str:
         return json.dumps(value, ensure_ascii=False)
 
     return str(value)
-
-
-def _try_repair_json(text: str) -> str | None:
-    """尝试修复 LLM 返回的不规范 JSON"""
-    if not text or not text.strip():
-        return None
-
-    repaired = text.strip()
-
-    # 1. 替换中文引号为英文引号
-    repaired = repaired.replace("\u201c", '"').replace("\u201d", '"')
-    repaired = repaired.replace("\u2018", "'").replace("\u2019", "'")
-
-    # 2. 清理不可见控制字符（保留 \\n \\t 等合法转义）
-    cleaned_chars = []
-    for ch in repaired:
-        code = ord(ch)
-        if code < 32 and ch not in ("\n", "\t", "\r"):
-            continue
-        cleaned_chars.append(ch)
-    repaired = "".join(cleaned_chars)
-
-    # 3. 移除对象/数组中的尾随逗号
-    repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
-
-    # 4. 移除字符串内部的未转义换行符
-    repaired = _fix_newlines_in_strings(repaired)
-
-    # 5. 修复转义引号（处理 LLM 有时输出 \" 而非 " 的情况）
-    # 但要注意不要破坏已有的正确转义
-    # 如果字符串中包含 \"，尝试在字符串上下文中修正
-    repaired = _fix_escaped_quotes(repaired)
-
-    try:
-        json.loads(repaired)
-        return repaired
-    except json.JSONDecodeError:
-        pass
-
-    return None
-
-
-def _fix_escaped_quotes(text: str) -> str:
-    """修复 JSON 字符串内的未正确转义的引号
-
-    LLM 有时会输出: {"text": "他说"你好"然后走了"}
-    正确应该是:     {"text": "他说\"你好\"然后走了"}
-
-    策略：在字符串内部，将未转义的双引号替换为转义引号。
-    """
-    result = []
-    in_string = False
-    escape_next = False
-    i = 0
-    while i < len(text):
-        ch = text[i]
-        if escape_next:
-            result.append(ch)
-            escape_next = False
-            i += 1
-            continue
-        if ch == "\\":
-            result.append(ch)
-            escape_next = True
-            i += 1
-            continue
-        if ch == '"':
-            if not in_string:
-                # 字符串开始
-                in_string = True
-                result.append(ch)
-            else:
-                # 检查是否为字符串结束
-                # 如果下一个非空白字符是 : , } ] 或数字，则是字符串结束
-                rest = text[i + 1 :].lstrip()
-                if rest and rest[0] in (":", ",", "}", "]", "\n", "\r"):
-                    in_string = False
-                    result.append(ch)
-                elif not rest:
-                    in_string = False
-                    result.append(ch)
-                else:
-                    # 可能是字符串内部的引号，尝试判断
-                    # 如果前一个字符不是 \，且下一个字符不是 JSON 结构字符
-                    # 则转义这个引号
-                    result.append('\\"')
-            i += 1
-            continue
-        result.append(ch)
-        i += 1
-    return "".join(result)
-
-
-def _fix_newlines_in_strings(text: str) -> str:
-    """修复 JSON 字符串内未转义的换行符"""
-    result = []
-    in_string = False
-    escape_next = False
-    i = 0
-    while i < len(text):
-        ch = text[i]
-        if escape_next:
-            result.append(ch)
-            escape_next = False
-            i += 1
-            continue
-        if ch == "\\":
-            result.append(ch)
-            escape_next = True
-            i += 1
-            continue
-        if ch == '"':
-            in_string = not in_string
-            result.append(ch)
-            i += 1
-            continue
-        if in_string and ch in ("\n", "\r"):
-            result.append("\\n" if ch == "\n" else "\\r")
-            i += 1
-            continue
-        result.append(ch)
-        i += 1
-    return "".join(result)
-
-
-def _close_truncated_json(text: str) -> str | None:
-    """补全被 max_tokens 截断的 JSON：按扫描状态机闭合未结束的字符串与括号栈。
-
-    GLM-4-Flash 偶发在 token 预算边界把 JSON 掐断（cards/timing 写一半），
-    此时 json.loads 与 _try_repair_json（只修引号/换行/尾逗号）都救不了。
-    补全后仅在整体可解析时返回，否则返回 None。
-    """
-    if not text or not text.strip():
-        return None
-    stack: list[str] = []
-    in_string = False
-    escape_next = False
-    for ch in text:
-        if in_string:
-            if escape_next:
-                escape_next = False
-            elif ch == "\\":
-                escape_next = True
-            elif ch == '"':
-                in_string = False
-            continue
-        if ch == '"':
-            in_string = True
-        elif ch in "{[":
-            stack.append(ch)
-        elif ch in "}]":
-            if stack:
-                stack.pop()
-    closed = text
-    if in_string:
-        if escape_next:
-            closed = closed[:-1]  # 去掉悬空的转义符再闭合
-        closed += '"'
-    # 去掉尾部悬挂的逗号/冒号/空白，再按栈逆序闭合
-    closed = re.sub(r"[,:\s]+$", "", closed)
-    for br in reversed(stack):
-        closed += "}" if br == "{" else "]"
-    try:
-        json.loads(closed)
-        return closed
-    except json.JSONDecodeError:
-        return None
 
 
 # 兜底输出的键名 → 中文标签：启发式格式化不再暴露 Verdict/Summary 等英文原始键名

@@ -89,10 +89,6 @@ class ReportAgentBirthInfo(BaseModel):
     hour: int | None = None
     timeText: str | None = None
     gender: str | None = None
-    # 农历出生年/月/日（可选）：生命灵数统一农历口径时由前端传入，数字命理模块排盘使用
-    lunarYear: int | None = None
-    lunarMonth: int | None = None
-    lunarDay: int | None = None
 
 
 class ReportAgentRequest(BaseModel):

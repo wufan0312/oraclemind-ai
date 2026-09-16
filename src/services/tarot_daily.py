@@ -1,6 +1,6 @@
 """玄镜 OracleMind · 塔罗每日解读编排
 
-对应 TS 版 src/services/tarotDaily.ts —— 缓存 + 预算熔断 + 结构化 JSON 生成 + 本地降级。
+缓存 + 预算熔断 + 结构化 JSON 生成 + 本地降级。
 返回 { data, disclaimer, meta }，data 为结构化 TarotDailyOutput。
 """
 
