@@ -51,3 +51,9 @@ Thumbs.db
 
 # 鐢熸垚鐗╁綊浣嶇洰褰曪紙鎴浘/html/json/鏃ュ織绛夋湰鍦颁骇鐗╋紝鍕挎彁浜わ紱浠ュ悗杩欑被鏂囦欢缁熶竴鏀捐繖閲岋級
 outputs/
+
+# 2026-09-28 从版本控制移除 env 文件（保留本地；密钥走 Vercel 面板）
+.env.example
+.env.development
+.env.production
+
