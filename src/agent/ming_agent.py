@@ -1,6 +1,7 @@
-"""玄镜 OracleMind · 起名 ReAct Agent（LangGraph）
+"""玄镜 OracleMind · 起名 ReAct Agent（LangChain Agent）
 
-使用 LangGraph prebuilt create_react_agent 实现多步推理。
+使用 langchain.agents.create_agent 实现多步推理（LangGraph 1.0 起
+langgraph.prebuilt.create_react_agent 已 deprecated，V2.0 移除）。
 """
 
 from __future__ import annotations
@@ -85,14 +86,14 @@ def _get_agent():
     if _agent is not None:
         return _agent
 
-    from langgraph.prebuilt import create_react_agent
+    from langchain.agents import create_agent
 
     model = _build_model()
     tools = _build_tools()
-    _agent = create_react_agent(
+    _agent = create_agent(
         model=model,
         tools=tools,
-        prompt=MING_AGENT_SYSTEM_PROMPT,
+        system_prompt=MING_AGENT_SYSTEM_PROMPT,
     )
     logger.info("起名 ReAct Agent 已初始化")
     return _agent

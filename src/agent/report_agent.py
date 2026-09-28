@@ -24,6 +24,7 @@ import hashlib
 from src.config import config
 from src.services.budget import cache_get, cache_set
 from src.services.provider import llm_provider
+from src.harness.observability.tracer import mark_phase
 
 logger = logging.getLogger(__name__)
 
@@ -654,6 +655,7 @@ async def _run_report_agent_inner(
 
     # 1. analyzer（规则化选术数，零成本）
     modules = select_modules(question)
+    mark_phase("analyzer", meta={"modules": modules, "crossLabels": cross_labels})
     # 跨页已有数字命理结论时不再重复排盘：跨页结论含姓名核心数字，信息比无姓名的排盘更全
     if "numerology" in cross_types:
         modules = [m for m in modules if m != "numerology"]
@@ -679,6 +681,11 @@ async def _run_report_agent_inner(
         if not resumed_paipan:
             _stage_cache_set("paipan", question, birth, modules, variant, paipan)
         success = paipan["success"]
+        mark_phase("paipan", meta={
+            "success": success,
+            "errors": list(paipan["errors"].keys()),
+            "resumed": resumed_paipan,
+        })
         yield {"event": "phase", "data": {
             "phase": "paipan",
             "success": success,
@@ -710,6 +717,7 @@ async def _run_report_agent_inner(
             # synthesizer（命中阶段缓存则跳过 LLM，#14 续传）
             cached_synth = _stage_cache_get("synthesizer", question, birth, modules, variant)
             resumed_synth = isinstance(cached_synth, dict) and bool(cached_synth)
+            mark_phase("synthesizer", meta={"resumed": resumed_synth, "revision": revision})
             yield {"event": "phase", "data": {"phase": "synthesizer", "resumed": resumed_synth}}
             synth_blocks = "\n\n".join(
                 f"### {MODULE_LABELS.get(m, m)}（{m}）\n{json.dumps(results[m], ensure_ascii=False)}"
@@ -755,6 +763,7 @@ async def _run_report_agent_inner(
                 yield {"event": "delta", "data": {"chunk": _sanitize(_friendly_synth(synthesis, success, cross_labels)) + "\n"}}
 
             # reviewer
+            mark_phase("reviewer", meta={"revision": revision})
             yield {"event": "phase", "data": {"phase": "reviewer"}}
             review_user = (
                 f"【综合分析结果】\n{json.dumps(synthesis, ensure_ascii=False)}\n\n请审稿，输出 JSON。"
@@ -780,6 +789,7 @@ async def _run_report_agent_inner(
                 break
 
         # writer
+        mark_phase("writer", meta={"variant": variant})
         yield {"event": "phase", "data": {"phase": "writer"}}
         writer_user = (
             f"【用户问题】\n{question or '整体运势综合分析'}\n\n"

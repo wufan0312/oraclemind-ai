@@ -337,7 +337,7 @@ def make_cache_key(module: str, result_json: str, focus: Optional[str] = None) -
          cards 逐牌合并），不再输出 **Verdict**/**Pos** 英文键名。旧 v13 缓存里已有
          英文键名坏输出（2026-09-08 塔罗页实测），bump 失效重算。
     """
-    _CACHE_VER = "v14"
+    _CACHE_VER = "v19"  # v19: 2026-09-20 新增 5.2 测评类请求禁外链只推自家工具 + CTA 新增 scales 目标（手动失效）
     h = hashlib.md5(result_json.encode()).hexdigest()[:16]
     # 末尾的 _prompt_fmt_hash(module)：prompt/format 源文件一改即自动失效（P1-10）
     return f"interpret:{module}:{h}:{focus or 'default'}:{_CACHE_VER}:{_prompt_fmt_hash(module)}"

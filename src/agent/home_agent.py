@@ -238,7 +238,7 @@ def _compact_paipan_summary(raw: str) -> str:
         parts.append(f"起运 {qy['date']}" + (f"（{qy['after']}）" if qy.get("after") else ""))
 
     if d.get("analysis"):
-        parts.append(f"命局分析 {str(d['analysis'])[:300]}")
+        parts.append(f"八字分析 {str(d['analysis'])[:300]}")
 
     return "\n".join(parts) if parts else raw[:1200]
 
@@ -426,33 +426,36 @@ def _get_agent():
     if _agent is not None:
         return _agent
 
-    from langgraph.prebuilt import create_react_agent
+    from langchain.agents import create_agent
 
     model = _build_model()
     tools = _build_tools()
-    _agent = create_react_agent(
+    _agent = create_agent(
         model=model,
         tools=tools,
-        prompt=HOME_AGENT_SYSTEM_PROMPT,
+        system_prompt=HOME_AGENT_SYSTEM_PROMPT,
     )
     logger.info("首页通用命理助手 ReAct Agent 已初始化")
     return _agent
 
 
 # 各模块的 CTA 文案与路由（首页小玄引导跳转用）
+# 措辞合规（2026-09-20）：对用户去「算命/排盘/命盘」化，统一走「觉察/探索/自我了解」框架
 _CTA_TARGETS = {
-    "tarot":      ("/tarot",      "想抽张牌问问？去塔罗页看看 →"),
-    "horoscope":  ("/horoscope",  "想看你的本命星盘？去星座页排一盘 →"),
+    "tarot":      ("/tarot",      "想抽张牌理理思路？去塔罗页看看 →"),
+    "horoscope":  ("/horoscope",  "想了解你的本命星盘？去星座页看看 →"),
     "numerology": ("/numerology", "想知道你的生命灵数？去数字密码页 →"),
-    "bugua":      ("/bugua",      "想排一盘完整命盘？去卜卦页看看 →"),
+    "bugua":      ("/bugua",      "想生成专属的觉察档案？去卜卦页看看 →"),
+    "scales":     ("/scales",     "想更了解自己的性格优势？去测评页测一测 →"),
 }
 
 # 无实质诉求（随便看看/逛）时的探索向文案：不带预填问题，目标页自动开「整体指引」局
 _CTA_EXPLORE_LABELS = {
     "tarot":      ("/tarot",      "随便逛逛？抽一副今日指引牌 →"),
     "horoscope":  ("/horoscope",  "随便看看？去星座页看今日星象 →"),
-    "numerology": ("/numerology", "随便看看？去算算你的生命灵数 →"),
-    "bugua":      ("/bugua",      "随便看看？去排一盘今日卦象 →"),
+    "numerology": ("/numerology", "随便看看？去看看你的生命灵数 →"),
+    "bugua":      ("/bugua",      "随便看看？去卜卦页看今日指引 →"),
+    "scales":     ("/scales",     "随便看看？测一测你的性格优势 →"),
 }
 
 # 意图关键词：具体模块词优先，宽情感/运势词兜底（避免「运势」等泛词误抢具体模块）
@@ -461,6 +464,8 @@ _CTA_INTENT_PATTERNS = [
     (re.compile(r"数字|生命灵数|灵数|九宫|流年|数字密码"), "numerology"),
     (re.compile(r"八字|卜卦|排盘|起名|合婚|紫微"), "bugua"),
     (re.compile(r"星座|星盘|上升|本命盘|行星|太阳返照|合盘"), "horoscope"),
+    # 测评类诉求 → 自家测评页（禁外链，见 prompts.py 5.2）；放在宽兜底之前，具体词优先
+    (re.compile(r"测评|在线测试|性格测试|人格测试|优势测试|优势测评|心理测试|MBTI|DISC|大五"), "scales"),
     # 宽兜底：无具体模块词时按语义归并
     (re.compile(r"感情|关系|在一起|分手|复合|暧昧"), "tarot"),
     (re.compile(r"运势|运程"), "horoscope"),
@@ -603,8 +608,117 @@ async def _decide_cta(
     return None
 
 
+# ---------------------------------------------------------------------------
+# 外链硬清洗（输出层服务端兜底）
+# prompts.py 5.2 已在指令层禁止 AI 推荐外部网站，但 GLM-4-Flash 对指令的依从并非
+# 100%（2026-09-20 用户实测：AI 仍给出 personalitytest.com / hollandcodes.com /
+# gallupstrengthscenter.com 等外链）。这里在输出层做**硬兜底**：任何外部 URL 一律
+# 抹除，命中时补一句站内引导，使「测评类请求只推自家工具」不再依赖模型的自觉性。
+# ---------------------------------------------------------------------------
+_MD_LINK_RE = re.compile(r"\[([^\[\]\n]*?)\]\(\s*(?:https?://|www\.)[^)\s]*\s*\)")
+# URL 合法字符集：中文/空格/括号等一律视为 URL 终止符（防「URL 后紧跟中文被一起吞掉」）
+_URL_BODY = r"[A-Za-z0-9\-._~:/?#@!$&*+,;=%\[\]]*"
+# 裸 URL，连同紧邻的成对/单侧括号一起抹除（避免掏空后残留 "()" 碎片）
+_WRAPPED_URL_RE = re.compile(rf"[（(【\[]?\s*(?:https?://|www\.){_URL_BODY}\s*[)）】\]]?")
+_EMPTY_PAREN_RE = re.compile(r"[（(]\s*[)）]")
+# 注意：这里与下面两处都必须用「行内空白」[ \t] 而非 \s —— MULTILINE 下 \s 会
+# 连换行一起吃掉，把「进行：\n\n- …」压成「进行\n- …」，破坏段落结构
+_DANGLING_OPEN_RE = re.compile(r"[（(【\[]+[ \t]*(?=\n|$)", re.M)
+_EXT_LINK_NOTICE = (
+    "\n\n顺带一提，上面这几类测评玄镜站内就有现成的（性格优势觉察 / 大五人格自评，"
+    "几分钟测完还能生成专属解读报告），不用去外面找～"
+)
+# 流式缓冲尾部保留字符数：防 "ht|tps://…" 这类 URL 起始标记被 chunk 边界切碎
+_LINK_TAIL_KEEP = 10
+# 切点回退时向前寻找自然边界的最大回溯距离（兜底，防超长无空白段落退化为全缓冲）
+_LINK_LOOKBACK = 80
+# URL 起始标记及其可能的不完整前缀（用于识别「正在成形」的 URL）
+_URL_START_MARKS = ("http://", "https://", "www.")
+_URL_PREFIX_SCAN = 8  # 覆盖最长标记 "https://"
+
+
+def _is_url_prefix(seg: str) -> bool:
+    """seg 是否可能是某 URL 起始标记的不完整前缀（如 "h" / "ht" / "https:/"）。"""
+    return bool(seg) and any(mark.startswith(seg) for mark in _URL_START_MARKS)
+
+
+def _url_prefix_pos(text: str) -> int:
+    """返回 text 中「可能是 URL 起始标记不完整前缀」的最早位置（无则 len(text)）。
+
+    只需检查缓冲区**开头**与**尾部窗口**：前者是上一轮 chunk 切分留下的半截标记，
+    后者是正在成形的标记；中间位置一旦凑齐完整标记即由 ``_WRAPPED_URL_RE`` 兜住。
+    """
+    if _is_url_prefix(text[:_URL_PREFIX_SCAN].lower()):
+        return 0
+    for i in range(max(0, len(text) - _URL_PREFIX_SCAN), len(text)):
+        if _is_url_prefix(text[i:i + _URL_PREFIX_SCAN].lower()):
+            return i
+    return len(text)
+
+
+def _strip_external_links(text: str) -> tuple[str, bool]:
+    """抹除文本中的外部 URL（含 markdown 链接与括号包裹的裸链）。
+
+    Returns: (清洗后文本, 是否发生清洗)
+    """
+    if not text or ("http" not in text and "www." not in text):
+        return text, False
+    out = _MD_LINK_RE.sub(lambda m: m.group(1), text)   # [标题](url) → 标题
+    out = _WRAPPED_URL_RE.sub("", out)                  # 裸 URL / 畸形包裹的 URL
+    out = _EMPTY_PAREN_RE.sub("", out)                  # 掏空后的空括号
+    out = _DANGLING_OPEN_RE.sub("", out)                # 行尾/文尾孤立开括号
+    out = re.sub(r"[：:][ \t]*$", "", out, flags=re.M)  # 行尾孤立冒号（「以下是链接：」）
+    out = re.sub(r"[ \t]+\n", "\n", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return (out, True) if out != text else (text, False)
+
+
+def _flush_link_safe(pending: str, final: bool = False) -> tuple[str, str, bool]:
+    """从流式缓冲中切出可安全输出的前缀（不切断可能正在成形的 URL）。
+
+    安全性依据：
+      ① 保留极短尾部——防 ``"ht"`` + ``"tps://…"`` 这类起始标记被 chunk 边界切碎后
+         「后半段失去 http 前缀」而绕过清洗；
+      ② 切点绝不落在任何 URL 内部，若落在某个 URL 上则整体回退到该 URL 起点
+         （连同其前置括号一起留到下一轮），避免把 URL 切成两半；
+      ③ 对可输出段统一做 ``_strip_external_links`` 清洗。
+
+    Returns: (可输出文本[已清洗], 残留缓冲, 本轮是否命中清洗)
+    """
+    if not pending:
+        return "", "", False
+    if final:
+        out, hit = _strip_external_links(pending)
+        return out, "", hit
+
+    cut = max(0, len(pending) - _LINK_TAIL_KEEP)
+
+    # 危险点①：缓冲区尾部/开头正在成形的 URL 起始标记（如 "…](ht" / "ht" + "tps://…"）
+    danger = _url_prefix_pos(pending)
+    # 危险点②：已成形但尚未结束的 URL —— 绝不能把 URL 切成两半（后半段会失去
+    # "http://" 前缀而绕过清洗）。只在首个越界的 URL 处回退一次即可。
+    for m in _WRAPPED_URL_RE.finditer(pending):
+        if m.end() > cut:
+            danger = min(danger, m.start())
+            break
+
+    if danger < len(pending):
+        # 回退到最近的自然边界（换行/空白），保证 markdown 链接前缀 "[标题](" 整块留到
+        # 下一轮 —— 这样流式切片能完整命中 _MD_LINK_RE，与一次性清洗结果完全一致。
+        cut = danger
+        floor = max(0, danger - _LINK_LOOKBACK)
+        while cut > floor and pending[cut - 1] not in "\n \t":
+            cut -= 1
+
+    if cut <= 0:
+        return "", pending, False
+    head, rest = pending[:cut], pending[cut:]
+    out, hit = _strip_external_links(head)
+    return out, rest, hit
+
+
 def _build_degraded(message: str) -> str:
-    return f"> 命理助手暂时不可用：{message}\n\n建议您：\n- 稍后重试\n- 或前往对应模块（卜卦/解梦/风水）单独查询"
+    return f"> 小玄助手暂时不可用：{message}\n\n建议您：\n- 稍后重试\n- 或前往对应模块（卜卦/解梦/塔罗/星座）单独查询"
 
 
 def _build_user_message(
@@ -691,7 +805,12 @@ async def run_home_agent(
                 break
 
         if not text:
-            return "> 命理助手未返回内容，请重试。", True, "Agent 未输出内容"
+            return "> 小玄助手未返回内容，请重试。", True, "Agent 未输出内容"
+
+        # 输出层硬清洗：抹除外部 URL（prompts 5.2 的服务端兜底），命中则补站内引导
+        text, link_hit = _strip_external_links(text)
+        if link_hit:
+            text += _EXT_LINK_NOTICE
 
         if HOME_AGENT_DISCLAIMER not in text:
             text += f"\n\n---\n*{HOME_AGENT_DISCLAIMER}*"
@@ -753,8 +872,10 @@ async def stream_home_agent(
     yield {"event": "open", "data": {}}
 
     used_paipan = False  # 是否调用了排盘类工具
-    full_text = ""       # 累积 LLM 完整回复，用于 meta 阶段意图识别
+    full_text = ""       # 累积 LLM 完整回复（已过外链清洗），用于 meta 阶段意图识别与缓存
     paipan_input: dict | None = None  # 最近一次排盘工具的入参，用于 CTA 回填
+    link_buffer = ""     # 外链清洗的流式缓冲（避免 URL 跨 chunk 漏出）
+    link_hit = False     # 本轮是否清洗掉了外部链接
     token = _current_birth_hint.set(birth_hint)
 
     # 生辰齐全 → 服务端先自己把盘排了（确定性判断，不赌 LLM 的 ReAct 决策）。
@@ -791,8 +912,14 @@ async def stream_home_agent(
                 if text == last_chunk_text:
                     continue
                 last_chunk_text = text
-                full_text += text
-                yield {"event": "delta", "data": {"chunk": text}}
+                # 外链硬清洗：先入缓冲再按安全边界切出，防 URL 跨 chunk 漏出
+                link_buffer += text
+                safe, link_buffer, hit = _flush_link_safe(link_buffer)
+                if hit:
+                    link_hit = True
+                if safe:
+                    full_text += safe
+                    yield {"event": "delta", "data": {"chunk": safe}}
 
             elif evt_type == "on_tool_start":
                 if "paipan" in name:
@@ -810,6 +937,18 @@ async def stream_home_agent(
                 if hasattr(output, "content"):
                     output = output.content
                 yield {"event": "tool_end", "data": {"tool": name, "output": str(output)[:1000]}}
+
+        # 冲净清洗缓冲（含最后一段未以换行结尾的文本）
+        tail, link_buffer, hit = _flush_link_safe(link_buffer, final=True)
+        if hit:
+            link_hit = True
+        if tail:
+            full_text += tail
+            yield {"event": "delta", "data": {"chunk": tail}}
+        # 命中外链清洗 → 末尾补一句站内引导（评测类场景把用户留在站内）
+        if link_hit:
+            full_text += _EXT_LINK_NOTICE
+            yield {"event": "delta", "data": {"chunk": _EXT_LINK_NOTICE}}
 
         meta_data: dict = {
             "provider": config.ai_provider,
@@ -833,6 +972,6 @@ async def stream_home_agent(
 
     except Exception as e:
         logger.error(f"home_agent 流式异常: {e}", exc_info=True)
-        yield {"event": "error", "data": {"code": "STREAM_ERROR", "message": "命理助手暂时不可用，请稍后重试"}}
+        yield {"event": "error", "data": {"code": "STREAM_ERROR", "message": "小玄助手暂时不可用，请稍后重试"}}
     finally:
         _current_birth_hint.reset(token)

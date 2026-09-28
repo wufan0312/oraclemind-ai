@@ -1,0 +1,58 @@
+{
+  "thresholds": {
+    "max_orphaned_rate": 0.1,
+    "forbidden_keywords": [
+      "作为人工智能",
+      "我是一个AI",
+      "我是人工智能",
+      "http://",
+      "https://",
+      "请咨询专业医生",
+      "请咨询专业医师",
+      "免责声明"
+    ]
+  },
+  "required_sections": {
+    "tarot": ["正位", "逆位", "建议"],
+    "bazi": ["八字", "五行", "大运"],
+    "ziwei": ["命宫", "格局", "建议"]
+  },
+  "samples": [
+    {
+      "name": "tarot_good",
+      "module": "tarot",
+      "expect_pass": true,
+      "text": "# 塔罗解读：圣杯六\n\n## 正位\n圣杯六正位代表怀旧与安全感，近期你可能在人际关系中感到被支持。\n\n## 逆位\n若出现逆位，则需警惕过度沉溺过去，影响当下决策。\n\n## 建议\n保持开放心态，把过去的经验转化为前行的力量。"
+    },
+    {
+      "name": "tarot_bad_orphan",
+      "module": "tarot",
+      "expect_pass": false,
+      "text": "# 塔罗解读：宝剑八\n\n## 正位\n宝剑八正位象征被困与自我设限，宜先稳住心神。\n\n## 逆位\n宝剑八逆位表示开始挣脱束缚，行动力回升。\n\n## 建议\n\n1. 行动指引\n\n## 注意事项\n适度即可，不必强求。"
+    },
+    {
+      "name": "tarot_bad_hallu",
+      "module": "tarot",
+      "expect_pass": false,
+      "text": "# 塔罗解读：星星\n\n## 正位\n星星正位代表希望与疗愈，前途渐明。\n\n## 逆位\n逆位时希望受挫，需自我安抚。\n\n## 建议\n作为人工智能，我无法替你决定，但建议保持信心，循序渐进。"
+    },
+    {
+      "name": "bazi_good",
+      "module": "bazi",
+      "expect_pass": true,
+      "text": "# 八字排盘\n\n## 八字\n乾造：甲子 乙丑 丙寅 丁卯。\n\n## 五行\n木火较旺，土金偏弱，水居中。\n\n## 大运\n现行庚午大运，事业渐入佳境。"
+    },
+    {
+      "name": "bazi_bad_missing",
+      "module": "bazi",
+      "expect_pass": false,
+      "text": "# 八字排盘\n\n## 八字\n乾造：甲子 乙丑 丙寅 丁卯。\n\n## 五行\n木火较旺，土金偏弱。\n\n（本命局信息有限，暂未排盘。）"
+    },
+    {
+      "name": "generic_good",
+      "module": "",
+      "expect_pass": true,
+      "text": "整体来看，近期宜守不宜攻，专注内在成长，待时机成熟再谋大事。"
+    }
+  ]
+}

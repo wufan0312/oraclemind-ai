@@ -20,6 +20,7 @@ from src.prompts.dream import dream_prompt
 from src.prompts.shared import OUTPUT_FORMAT, DISCLAIMER
 from src.prompts.registry import list_modules, get_prompt
 from src.config import config
+from src.harness import route_trace
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -44,7 +45,7 @@ async def post_interpret_stream(req: InterpretRequest):
                 "data": json.dumps(evt.get("data", {}), ensure_ascii=False),
             }
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(route_trace(event_generator(), meta={"module": req.module, "kind": "interpret"}))
 
 
 @router.post("/retrieve")
@@ -165,7 +166,7 @@ async def post_summary_stream(req: SummaryRequest):
         async for evt in interpret_summary_stream(result, req.requestId, req.focus):
             yield evt
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(route_trace(event_generator(), meta={"module": "summary", "kind": "summary"}))
 
 
 # ============================ 多轮对话 SSE 流式 ============================
@@ -230,7 +231,7 @@ async def post_chat_stream(req: ChatStreamRequest):
       - module in GENERIC_FOLLOWUP_MODULES：{ context(原始解读文本), history, question }
     事件流：open → delta* → meta → done（异常时 error 替代 meta+done）
     """
-    if req.module not in ("dream", "tarot", "healing", *GENERIC_FOLLOWUP_MODULES):
+    if req.module not in ("dream", "tarot", "healing", "classics", "meditation", *GENERIC_FOLLOWUP_MODULES):
         raise HTTPException(
             status_code=400,
             detail={"error": "INVALID_MODULE", "message": "chat/stream 仅支持 dream / tarot / 命理追问模块"},
@@ -295,7 +296,7 @@ async def post_chat_stream(req: ChatStreamRequest):
             f"回答用中文，语气温和专业。可以使用 Markdown 格式（加粗、列表、段落）。"
             f"不需要输出 JSON 结构，直接输出自然语言文本。"
         )
-    elif req.module == "healing":
+    elif req.module in ("healing", "classics", "meditation"):
         # 疗愈陪伴对话：小玄 persona，温柔倾听，不预言；context 为可选综合报告背景
         from src.prompts.healing import HEALING_SYSTEM
         ctx = (
@@ -381,4 +382,4 @@ async def post_chat_stream(req: ChatStreamRequest):
             }
             yield {"event": "done", "data": json.dumps({}, ensure_ascii=False)}
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(route_trace(event_generator(), meta={"module": "chat", "chat_module": req.module, "kind": "chat"}))

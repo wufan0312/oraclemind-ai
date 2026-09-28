@@ -203,6 +203,14 @@ class Config:
     # ----- 缓存 -----
     redis_url: str = _str("REDIS_URL", "")
 
+    # ----- Observability 决策树追踪（P0-2）-----
+    # TRACE_ENABLED=false 时整体关闭（含 /trace 端点与 LLM 埋点）。
+    # 热存储复用 redis_url；未配置则降级内存兜底。冷存储可选：配 TRACE_PG_DSN 后 best-effort 落 PG。
+    trace_enabled: bool = _bool("TRACE_ENABLED", True)
+    trace_ttl_seconds: int = _num("TRACE_TTL_SECONDS", 3600)
+    trace_pg_dsn: str = _str("TRACE_PG_DSN", "")
+    trace_pg_table: str = _str("TRACE_PG_TABLE", "agent_traces")
+
     # ----- 成本控制 -----
     budget_day_yuan: float = _float("BUDGET_DAY_YUAN", 5.0)
     ai_price_input_per_1k: float = _float("AI_PRICE_INPUT_PER_1K", 0.001)

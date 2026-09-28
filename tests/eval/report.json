@@ -1,0 +1,210 @@
+{
+  "overall_passed": true,
+  "mismatches": 0,
+  "samples": [
+    {
+      "module": "tarot",
+      "passed": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "format_compliance",
+          "passed": true,
+          "detail": {
+            "missing": []
+          }
+        },
+        {
+          "name": "orphaned_heading_rate",
+          "passed": true,
+          "detail": {
+            "total": 0,
+            "orphaned": 0,
+            "rate": 0.0
+          }
+        },
+        {
+          "name": "hallucination_keyword",
+          "passed": true,
+          "detail": {
+            "total_hits": 0,
+            "hits": []
+          }
+        }
+      ],
+      "name": "tarot_good",
+      "expect_pass": true,
+      "match": true
+    },
+    {
+      "module": "tarot",
+      "passed": false,
+      "score": 0.66,
+      "checks": [
+        {
+          "name": "format_compliance",
+          "passed": true,
+          "detail": {
+            "missing": []
+          }
+        },
+        {
+          "name": "orphaned_heading_rate",
+          "passed": false,
+          "detail": {
+            "total": 1,
+            "orphaned": 1,
+            "rate": 1.0
+          }
+        },
+        {
+          "name": "hallucination_keyword",
+          "passed": true,
+          "detail": {
+            "total_hits": 0,
+            "hits": []
+          }
+        }
+      ],
+      "name": "tarot_bad_orphan",
+      "expect_pass": false,
+      "match": true
+    },
+    {
+      "module": "tarot",
+      "passed": false,
+      "score": 0.66,
+      "checks": [
+        {
+          "name": "format_compliance",
+          "passed": true,
+          "detail": {
+            "missing": []
+          }
+        },
+        {
+          "name": "orphaned_heading_rate",
+          "passed": true,
+          "detail": {
+            "total": 0,
+            "orphaned": 0,
+            "rate": 0.0
+          }
+        },
+        {
+          "name": "hallucination_keyword",
+          "passed": false,
+          "detail": {
+            "total_hits": 1,
+            "hits": [
+              [
+                "作为人工智能",
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "name": "tarot_bad_hallu",
+      "expect_pass": false,
+      "match": true
+    },
+    {
+      "module": "bazi",
+      "passed": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "format_compliance",
+          "passed": true,
+          "detail": {
+            "missing": []
+          }
+        },
+        {
+          "name": "orphaned_heading_rate",
+          "passed": true,
+          "detail": {
+            "total": 0,
+            "orphaned": 0,
+            "rate": 0.0
+          }
+        },
+        {
+          "name": "hallucination_keyword",
+          "passed": true,
+          "detail": {
+            "total_hits": 0,
+            "hits": []
+          }
+        }
+      ],
+      "name": "bazi_good",
+      "expect_pass": true,
+      "match": true
+    },
+    {
+      "module": "bazi",
+      "passed": false,
+      "score": 0.66,
+      "checks": [
+        {
+          "name": "format_compliance",
+          "passed": false,
+          "detail": {
+            "missing": [
+              "大运"
+            ]
+          }
+        },
+        {
+          "name": "orphaned_heading_rate",
+          "passed": true,
+          "detail": {
+            "total": 0,
+            "orphaned": 0,
+            "rate": 0.0
+          }
+        },
+        {
+          "name": "hallucination_keyword",
+          "passed": true,
+          "detail": {
+            "total_hits": 0,
+            "hits": []
+          }
+        }
+      ],
+      "name": "bazi_bad_missing",
+      "expect_pass": false,
+      "match": true
+    },
+    {
+      "module": "",
+      "passed": true,
+      "score": 1.0,
+      "checks": [
+        {
+          "name": "orphaned_heading_rate",
+          "passed": true,
+          "detail": {
+            "total": 0,
+            "orphaned": 0,
+            "rate": 0.0
+          }
+        },
+        {
+          "name": "hallucination_keyword",
+          "passed": true,
+          "detail": {
+            "total_hits": 0,
+            "hits": []
+          }
+        }
+      ],
+      "name": "generic_good",
+      "expect_pass": true,
+      "match": true
+    }
+  ]
+}

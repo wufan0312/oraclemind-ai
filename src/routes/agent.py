@@ -12,6 +12,9 @@ from sse_starlette.sse import EventSourceResponse
 from src.agent.ming_agent import run_ming_agent, stream_ming_agent
 from src.agent.report_agent import run_report_agent
 from src.agent.home_agent import run_home_agent, stream_home_agent
+from src.agent.assessment_agent import stream_assessment_agent
+from src.agent.scale_report_agent import stream_scale_report_agent
+from src.harness import route_trace
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["agent"])
@@ -44,7 +47,7 @@ async def post_agent_ming_stream(req: MingRequest):
                 "data": json.dumps(evt.get("data", {}), ensure_ascii=False),
             }
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(route_trace(event_generator(), meta={"agent": "ming", "kind": "agent"}))
 
 
 # ============================ 首页通用命理助手 Agent ============================
@@ -80,7 +83,7 @@ async def post_agent_home_stream(req: HomeRequest):
                 "data": json.dumps(evt.get("data", {}), ensure_ascii=False),
             }
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(route_trace(event_generator(), meta={"agent": "home", "kind": "agent"}))
 # ============================ 综合报告 Agent ============================
 class ReportAgentBirthInfo(BaseModel):
     year: int
@@ -105,6 +108,65 @@ class ReportAgentRequest(BaseModel):
     variant: int = 0
 
 
+# ============================ 复原力测评 Agent ============================
+class AssessmentRequest(BaseModel):
+    """复原力测评请求：只传问卷答案（键值均为题目 key / 用户自评文本）。
+
+    题干与 system prompt 由服务端持有（见 src/agent/assessment_agent.py），
+    客户端不可注入任意 prompt；答案长度截断由服务端兜底。
+    """
+
+    answers: dict[str, str] = Field(default_factory=dict, max_length=40)
+    requestId: str | None = None
+
+
+@router.post("/agent/assessment/stream")
+async def post_agent_assessment_stream(req: AssessmentRequest):
+    """复原力测评 Agent（SSE 流式）
+
+    事件流：open → delta*(LLM token) → meta(disclaimer) → done / error
+    """
+    async def event_generator():
+        async for evt in stream_assessment_agent(req.answers):
+            yield {
+                "event": evt["event"],
+                "data": json.dumps(evt.get("data", {}), ensure_ascii=False),
+            }
+
+    return EventSourceResponse(route_trace(event_generator(), meta={"agent": "assessment", "kind": "agent"}))
+
+
+# ============================ 量表 AI 心理报告 Agent ============================
+class ScaleReportRequest(BaseModel):
+    """量表 AI 心理报告请求：只传计分结果与服务端摘要（维度分 / 等级 / interpretation 均为权威值）。
+
+    system prompt 由服务端持有（见 src/agent/scale_report_agent.py），客户端不可注入任意 prompt；
+    字段长度由服务端兜底截断。
+    """
+
+    slug: str = Field(max_length=64)
+    title: str = Field(max_length=128)
+    dimensions: list[dict] = Field(default_factory=list, max_items=20)
+    summary: str = Field(default="", max_length=2000)
+    requestId: str | None = None
+
+
+@router.post("/agent/scale-report/stream")
+async def post_agent_scale_report_stream(req: ScaleReportRequest):
+    """量表 AI 心理报告 Agent（SSE 流式）
+
+    事件流：open → delta*(LLM token) → meta(disclaimer) → done / error
+    """
+    async def event_generator():
+        async for evt in stream_scale_report_agent(req.model_dump(exclude_none=True)):
+            yield {
+                "event": evt["event"],
+                "data": json.dumps(evt.get("data", {}), ensure_ascii=False),
+            }
+
+    return EventSourceResponse(route_trace(event_generator(), meta={"agent": "scale-report", "kind": "agent"}))
+
+
 @router.post("/agent/report/stream")
 async def post_agent_report_stream(req: ReportAgentRequest):
     """综合报告 Agent（SSE 流式）
@@ -121,4 +183,4 @@ async def post_agent_report_stream(req: ReportAgentRequest):
                 "data": json.dumps(evt.get("data", {}), ensure_ascii=False),
             }
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(route_trace(event_generator(), meta={"agent": "report", "kind": "report", "question": req.question[:200]}))

@@ -15,11 +15,13 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 sse-starlette>=2.1.0
 
-# LangChain + LangGraph
-langchain>=0.3.0
-langchain-openai>=0.2.0
-langchain-core>=0.3.0
-langgraph>=0.2.0
+# LangChain + LangGraph（已升级到 1.x；2026-09-18）
+# 注意：langgraph.prebuilt.create_react_agent 在 1.0 已 deprecated（V2.0 移除），
+#       代码已改用 langchain.agents.create_agent。
+langchain>=1.0
+langchain-openai>=1.0
+langchain-core>=1.0
+langgraph>=1.0
 
 # RAG 向量数据库（RAG 开启时必需；关闭 RETRIEVAL_ENABLED 可省去其运行时负担）
 chromadb>=0.5.0

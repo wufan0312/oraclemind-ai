@@ -55,6 +55,11 @@ app.include_router(agent_router)
 app.include_router(astrology_router)
 app.include_router(poster_router)
 
+# Harness 工程化 · Observability 决策树追踪（P0-2）：装 LLM 埋点 + /trace/{id} 端点
+from src.harness import install_observability
+
+install_observability(app)
+
 
 # 限流中间件（内存令牌桶，单进程；多 worker 才需 Redis）
 _RATE_LIMIT_WHITELIST = ("/", "/health", "/docs", "/redoc", "/openapi.json")

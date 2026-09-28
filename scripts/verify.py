@@ -52,10 +52,10 @@ except Exception as e:
     print(f"  LangChain: FAIL - {e}")
 
 print()
-print("=== LangGraph 验证 ===")
+print("=== LangGraph / Agent 验证 ===")
 try:
-    from langgraph.prebuilt import create_react_agent
-    print("  create_react_agent: imported OK")
+    from langchain.agents import create_agent
+    print("  create_agent: imported OK")
     print("  LangGraph: OK")
 except Exception as e:
     print(f"  LangGraph: FAIL - {e}")
