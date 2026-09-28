@@ -112,10 +112,21 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
     if request.url.path in _AUTH_WHITELIST:
         return await call_next(request)
+    # CORS 预检（OPTIONS）不带自定义头，且来源已由 CORS 中间件管控；
+    # 若在此拦截会直接 401（本中间件在 CORS 外层，响应到不了内层 CORS 头注入），
+    # 导致浏览器预检失败、表现为「跨域错误」而非 401。预检直接放行。
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    # 合法前端来源（CORS 白名单内）免密直连：跨站已被 CORS 拦截，
+    # 此处对真实前端放行，避免「自己前端被自己鉴权挡在门外」。
+    # 注意：非浏览器客户端可伪造 Origin 绕过本豁免，故仅作跨站防护、不作防刷/防白嫖手段。
+    origin = request.headers.get("origin")
+    if origin and origin in config.cors_origin_list:
+        return await call_next(request)
     provided = request.headers.get("X-API-Key")
     if provided and provided == config.ai_service_api_key:
         return await call_next(request)
-    logger.warning(f"鉴权失败: path={request.url.path} ip={request.client.host if request.client else '?'}")
+    logger.warning(f"鉴权失败: path={request.url.path} ip={request.client.host if request.client else '?'} origin={origin}")
     return JSONResponse(
         status_code=401,
         content={"error": "UNAUTHORIZED", "message": "缺少或无效的 API Key"},
