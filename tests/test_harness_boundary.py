@@ -1,7 +1,7 @@
 """P0 Boundary 单测：ai-py 强校验 + 重试回路 + LangGraph 接线 + integration 回灌 + backend tool-gateway。
 
 运行（受管 venv 已装 jsonschema）：
-    cd oraclemind-ai-py && PYTHONPATH=. python tests/test_harness_boundary.py
+    cd oraclemind-ai && PYTHONPATH=. python tests/test_harness_boundary.py
 """
 import importlib.util
 import os

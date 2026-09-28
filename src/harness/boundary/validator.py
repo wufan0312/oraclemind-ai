@@ -1,6 +1,6 @@
 """
 玄镜 Harness Boundary —— 结构化强校验器
-落点：oraclemind-ai-py/src/harness/boundary/validator.py
+落点：oraclemind-ai/src/harness/boundary/validator.py
 依赖：jsonschema (Draft7)
 """
 from typing import Dict, List, Optional

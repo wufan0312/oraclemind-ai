@@ -1,6 +1,6 @@
 """
 玄镜 OracleMind · Harness Boundary 层：AI 结构化输出 JSON Schema 契约
-落点：oraclemind-ai-py/src/harness/boundary/schemas.py
+落点：oraclemind-ai/src/harness/boundary/schemas.py
 
 设计依据（对齐真实业务，而非拍脑袋字段）：
 - 单模块解读输出契约 = src/prompts/shared.OUTPUT_FORMAT

@@ -1,7 +1,7 @@
 """P2 质量门单测：golden set 敏感性验证（good 应过、bad 应拦）。
 
 运行（受管 venv，纯标准库无额外依赖）：
-    cd oraclemind-ai-py && PYTHONPATH=. python tests/test_harness_quality_gate.py
+    cd oraclemind-ai && PYTHONPATH=. python tests/test_harness_quality_gate.py
 """
 import json
 import os

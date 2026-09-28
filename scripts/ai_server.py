@@ -14,7 +14,7 @@
     - 启动后写 pidfile，停止时按「pidfile + 端口扫描」双重清理，确保端口释放干净。
     - 启动后轮询 /health 做健康检查，确认真正可用再返回。
 
-用法（在 oraclemind-ai-py 目录下执行）：
+用法（在 oraclemind-ai 目录下执行）：
     python scripts/ai_server.py start        # 启动（默认端口 8021）
     python scripts/ai_server.py stop         # 停止
     python scripts/ai_server.py restart      # 重启
@@ -36,7 +36,7 @@ import urllib.error
 
 # ---------- 路径与常量 ----------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)          # oraclemind-ai-py/
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)          # oraclemind-ai/
 MONOREPO_ROOT = os.path.dirname(PROJECT_ROOT)         # F:/project/oraclemind（monorepo 根）
 DEFAULT_PORT = 8021                                  # 与前端 .env.local 的 NEXT_PUBLIC_AI_API_BASE 对齐
 HEALTH_PATH = "/health"

@@ -1,4 +1,4 @@
-"""将待审知识库条目幂等合并入生产库（oraclemind-ai-py）
+"""将待审知识库条目幂等合并入生产库（oraclemind-ai）
 
 用法：
     python scripts/merge_pending_kb.py            # 仅预览，不写库、不 ingest

@@ -1,7 +1,7 @@
-# 玄镜 OracleMind · AI 服务部署指南（oraclemind-ai-py）
+# 玄镜 OracleMind · AI 服务部署指南（oraclemind-ai）
 
 > 与后端（oraclemind-backend）一致：**Vercel 2026 原生支持 ASGI，直接用 ASGI 入口，无需 Mangum。**
-> 本服务作为**独立 Vercel 项目**（rootDirectory = `oraclemind-ai-py`）。
+> 本服务作为**独立 Vercel 项目**（rootDirectory = `oraclemind-ai`）。
 
 ---
 
@@ -72,7 +72,7 @@ Vercel 函数运行时代码目录**只读**，仅 `/tmp` 可写。涉及写盘�
 
 ## 4. 部署清单（Vercel）
 
-1. 在 Vercel 新建项目，Repository 选本仓库，`Root Directory` = `oraclemind-ai-py`。
+1. 在 Vercel 新建项目，Repository 选本仓库，`Root Directory` = `oraclemind-ai`。
 2. 构建/运行时环境变量（Project Settings → Environment Variables）：
    - `AI_API_KEY`（智谱 GLM-4-Flash 密钥，**必填**，否则 llm_available=false）
    - `AI_PROVIDER=zhipu`、`AI_MODEL_CHAT=glm-4-flash`
@@ -89,7 +89,7 @@ Vercel 函数运行时代码目录**只读**，仅 `/tmp` 可写。涉及写盘�
 ## 5. 本地运行（不变）
 
 ```bash
-cd oraclemind-ai-py
+cd oraclemind-ai
 cp .env.example .env   # 填 AI_API_KEY
 python scripts/ai_server.py start     # 默认端口 8021，单进程、无 reload
 python scripts/ai_server.py status    # 健康检查

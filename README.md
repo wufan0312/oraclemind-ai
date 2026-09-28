@@ -16,7 +16,7 @@
 ## 项目结构
 
 ```
-oraclemind-ai-py/
+oraclemind-ai/
 ├── src/
 │   ├── __init__.py
 │   ├── config.py              # 配置层
@@ -63,7 +63,7 @@ oraclemind-ai-py/
 ## 快速启动
 
 ```bash
-cd oraclemind-ai-py
+cd oraclemind-ai
 
 # 安装依赖
 pip install -e .

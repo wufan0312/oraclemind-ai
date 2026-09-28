@@ -1,6 +1,6 @@
 """
 玄镜 Harness Boundary —— 接入 ai-py 现有结构化生成链路
-落点：oraclemind-ai-py/src/harness/boundary/integration.py
+落点：oraclemind-ai/src/harness/boundary/integration.py
 
 现有 src.services.structured.generate_structured 已做 LLM 调用 + JSON 解析 + 重试一次，
 但只校验「能否解析成 JSON」，不校验「是否符合业务契约」。本模块在其之上加一层契约校验：

@@ -142,7 +142,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def root():
     return {
         "status": "ok",
-        "service": "oraclemind-ai-py",
+        "service": "oraclemind-ai",
         "name": "玄镜 OracleMind · AI 服务",
         "version": "0.1.0",
         "message": "服务已就绪。健康检查：GET /health；业务接口：/api/v1/*。",
@@ -154,7 +154,7 @@ async def root():
 async def health():
     return {
         "status": "ok",
-        "service": "oraclemind-ai-py",
+        "service": "oraclemind-ai",
         "version": "0.1.0",
         "llm_available": config.llm_available,
         "llm_fallback_configured": config.llm_fallback_configured,

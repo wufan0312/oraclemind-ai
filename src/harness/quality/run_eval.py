@@ -1,8 +1,8 @@
 """P2 质量门 CLI：加载 golden set → 评估 → 输出 report.md + report.json。
 
 运行（任选其一）：
-    cd oraclemind-ai-py && PYTHONPATH=. python -m src.harness.quality.run_eval
-    cd oraclemind-ai-py && PYTHONPATH=. python src/harness/quality/run_eval.py [golden.json 路径]
+    cd oraclemind-ai && PYTHONPATH=. python -m src.harness.quality.run_eval
+    cd oraclemind-ai && PYTHONPATH=. python src/harness/quality/run_eval.py [golden.json 路径]
 
 退出码：全部样本符合期望 → 0；存在期望不符 → 1（可作 CI 质量门失败信号）。
 """

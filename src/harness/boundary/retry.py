@@ -1,6 +1,6 @@
 """
 玄镜 Harness Boundary —— 重试回路
-落点：oraclemind-ai-py/src/harness/boundary/retry.py
+落点：oraclemind-ai/src/harness/boundary/retry.py
 """
 from dataclasses import dataclass
 from typing import Callable, Dict, Any, Optional, Tuple

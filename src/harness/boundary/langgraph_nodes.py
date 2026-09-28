@@ -1,6 +1,6 @@
 """
 玄镜 Harness Boundary —— LangGraph 集成
-落点：oraclemind-ai-py/src/harness/boundary/langgraph_nodes.py
+落点：oraclemind-ai/src/harness/boundary/langgraph_nodes.py
 
 把 Boundary 校验接成编排回路：
     generate(生成节点) -> boundary_check -> route_boundary

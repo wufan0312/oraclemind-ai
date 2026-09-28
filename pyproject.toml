@@ -1,5 +1,5 @@
 [project]
-name = "oraclemind-ai-py"
+name = "oraclemind-ai"
 version = "0.1.0"
 description = "玄镜 OracleMind · AI 解读服务（Python 重构版）"
 requires-python = ">=3.11"
@@ -55,6 +55,6 @@ testpaths = ["tests"]
 
 # Vercel 原生 ASGI 部署入口：Vercel 自动检测 api/index.py 为 Python(ASGI) 函数，
 # 并加载其中的 `app` 对象（无需 Mangum）。
-# 形态：AI 服务作为独立 Vercel 项目，rootDirectory=oraclemind-ai-py。
+# 形态：AI 服务作为独立 Vercel 项目，rootDirectory=oraclemind-ai。
 # 注意：不要在 [tool.vercel] 手写 entrypoint —— 模块路径解析会失败并报
 # "no matching module file was found"，交给 Vercel 自动检测即可。
