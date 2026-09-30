@@ -26,6 +26,7 @@ from pymeeus.Epoch import Epoch
 
 from src.config import config
 from src.services.structured import generate_structured
+from src.harness.boundary.integration import generate_structured_with_boundary
 from src.harness.quality.hook import maybe_quality_check
 from src.services.budget import budget_broken, record_cost, estimate_cost, cache_get, cache_set
 
@@ -915,18 +916,23 @@ async def interpret_astrology(
             **extra,
         }
 
-    parsed, err, tokens, provider, model = await generate_structured(
-        system, user, temperature=0.75, max_tokens=1500, retries=1
+    contract = "astro_natal" if atype == "natal" else "astro_forecast"
+    parsed, err, degraded, tokens, provider, model = await generate_structured_with_boundary(
+        contract, system, user, temperature=0.75, max_tokens=1500,
     )
     if parsed is not None:
-        maybe_quality_check("astro_natal", json.dumps(parsed, ensure_ascii=False))
-    if parsed is None:
+        maybe_quality_check(contract, json.dumps(parsed, ensure_ascii=False))
+    if parsed is None or degraded:
         fb = _local_natal(chart) if atype == "natal" else _local_forecast(chart, period)
+        reason = "LLM 生成失败，本地规则降级" if parsed is None else "边界契约校验失败，本地规则降级"
         return {
             "data": fb,
             "disclaimer": DISCLAIMER,
             "meta": _base_meta(request_id, atype, period, start,
-                              {"degraded": True, "degradedReason": "LLM 生成失败，本地规则降级", "provider": "local-rules", "model": "local-rules", "tokens": None, "cost": 0}),
+                              {"degraded": True, "degradedReason": reason,
+                               "provider": "local-rules" if parsed is None else provider,
+                               "model": "local-rules" if parsed is None else model,
+                               "tokens": tokens, "cost": 0}),
             **extra,
         }
 
@@ -1168,16 +1174,19 @@ async def interpret_synastry(birth1: dict, birth2: dict, house_system: str = "eq
                                   "provider": "local-rules", "model": "local-rules", "tokens": None, "cost": 0})
         return syn
 
-    parsed, err, tokens, provider, model = await generate_structured(
-        SYNASTRY_SYSTEM, user, temperature=0.75, max_tokens=1500, retries=1
+    parsed, err, degraded, tokens, provider, model = await generate_structured_with_boundary(
+        "astro_synastry", SYNASTRY_SYSTEM, user, temperature=0.75, max_tokens=1500,
     )
     if parsed is not None:
         maybe_quality_check("astro_synastry", json.dumps(parsed, ensure_ascii=False))
-    if parsed is None:
+    if parsed is None or degraded:
         syn["disclaimer"] = DISCLAIMER
         syn["meta"] = _base_meta(request_id, "synastry", "", start,
-                                 {"degraded": True, "degradedReason": "LLM 生成失败，本地规则降级",
-                                  "provider": "local-rules", "model": "local-rules", "tokens": None, "cost": 0})
+                                 {"degraded": True,
+                                  "degradedReason": "LLM 生成失败，本地规则降级" if parsed is None else "边界契约校验失败，本地规则降级",
+                                  "provider": "local-rules" if parsed is None else provider,
+                                  "model": "local-rules" if parsed is None else model,
+                                  "tokens": tokens, "cost": 0})
         return syn
 
     for k in ("compatibility", "love", "communication", "conflict"):
@@ -1246,17 +1255,22 @@ async def interpret_solar_return(birth: dict, year: Optional[int] = None, house_
                                "provider": "local-rules", "model": "local-rules", "tokens": None, "cost": 0}),
         }
 
-    parsed, err, tokens, provider, model = await generate_structured(
-        SR_SYSTEM, user, temperature=0.75, max_tokens=1500, retries=1
+    parsed, err, degraded, tokens, provider, model = await generate_structured_with_boundary(
+        "astro_solar_return", SR_SYSTEM, user, temperature=0.75, max_tokens=1500,
     )
-    if parsed is None:
+    if parsed is not None:
+        maybe_quality_check("astro_solar_return", json.dumps(parsed, ensure_ascii=False))
+    if parsed is None or degraded:
         data = _local_natal(sr)
         return {
             "data": data,
             "disclaimer": DISCLAIMER,
             "meta": _base_meta(request_id, "solar_return", "", start,
-                              {"degraded": True, "degradedReason": "LLM 生成失败，本地规则降级",
-                               "provider": "local-rules", "model": "local-rules", "tokens": None, "cost": 0}),
+                              {"degraded": True,
+                               "degradedReason": "LLM 生成失败，本地规则降级" if parsed is None else "边界契约校验失败，本地规则降级",
+                               "provider": "local-rules" if parsed is None else provider,
+                               "model": "local-rules" if parsed is None else model,
+                               "tokens": tokens, "cost": 0}),
         }
 
     data = {k: parsed.get(k) for k in ("overview", "personality", "love", "career", "health", "advice")}

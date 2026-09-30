@@ -146,7 +146,7 @@ def test_integration_retry_on_boundary_fail():
     try:
         import asyncio
 
-        parsed, err, degraded = asyncio.run(
+        parsed, err, degraded, *_ = asyncio.run(
             generate_structured_with_boundary("bazi", "sys", "usr", max_boundary_retries=1)
         )
         assert parsed is not None and not degraded

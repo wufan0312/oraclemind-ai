@@ -27,25 +27,26 @@ async def generate_structured_with_boundary(
     temperature: float = 0.8,
     max_tokens: int = 1280,
     max_boundary_retries: int = 1,
-) -> Tuple[Optional[dict], Optional[str], bool]:
+) -> Tuple[Optional[dict], Optional[str], bool, Optional[int], Optional[str], Optional[str]]:
     """调用 generate_structured 并做 Boundary 契约校验。
 
     Args:
-        contract: 契约键，对应 MODULE_SCHEMAS（如 "bazi" / "report"）。
+        contract: 契约键，对应 MODULE_SCHEMAS（如 "astro_natal" / "report"）。
         system / user: 原样透传给 generate_structured。
         max_boundary_retries: 契约不通过时，最多回灌修正几次（不含首次）。
 
     Returns:
-        (parsed, error_code, degraded)
+        (parsed, error_code, degraded, tokens, provider, model)
         - degraded=True 表示重试后仍不满足契约，调用方应降级而非信任该数据。
+        - tokens/provider/model 透传自 generate_structured，便于调用方做成本核算。
     """
     from src.services.structured import generate_structured  # 延迟导入：避免重型依赖链
 
-    parsed, err, _tokens, _provider, _model = await generate_structured(
+    parsed, err, tokens, provider, model = await generate_structured(
         system, user, temperature=temperature, max_tokens=max_tokens, retries=1
     )
     if parsed is None:
-        return None, err or "LLM_FAIL", True
+        return None, err or "LLM_FAIL", True, tokens, provider, model
 
     res = _VALIDATOR.validate(contract, parsed)
     attempts = 0
@@ -53,14 +54,14 @@ async def generate_structured_with_boundary(
         attempts += 1
         feedback = res.human_message()
         retry_user = f"{user}\n\n[系统] {feedback}"
-        parsed2, err2, *_ = await generate_structured(
+        parsed2, err2, tokens, provider, model = await generate_structured(
             system, retry_user, temperature=temperature, max_tokens=max_tokens, retries=1
         )
         if parsed2 is None:
-            return parsed, err2 or "LLM_FAIL", True
+            return parsed, err2 or "LLM_FAIL", True, tokens, provider, model
         parsed = parsed2
         res = _VALIDATOR.validate(contract, parsed)
 
     if not res.ok:
-        return parsed, "BOUNDARY_FAIL", True
-    return parsed, None, False
+        return parsed, "BOUNDARY_FAIL", True, tokens, provider, model
+    return parsed, None, False, tokens, provider, model

@@ -123,21 +123,49 @@ _INTERPRET_MODULES = [
     "numerology", "tarot", "dream", "fengshui", "angel",
 ]
 
-# 西方占星 / 综合运势 / 每日塔罗（src/services/astrology.py、summary.py、tarot_daily.py）。
-# 这些服务的 LLM 输出结构各异（合盘含 compatibility/love、返照含 overview/personality、
-# 每日塔罗含 cards/energy），但均含 ok/summary 基础字段，故复用宽松契约（required 仅
-# ok/summary + additionalProperties=true），消除 BoundaryValidator 的「未注册模块」障碍。
-# 注：契约已注册 ≠ 已实时接入；实时接线（generate_structured →
-# generate_structured_with_boundary）需逐个服务的 LLM 输出回归验证后切换，避免无契约/错契约
-# 下全量 degraded（见 2026-09-29 harness 审查 #1）。
+# 西方占星（src/services/astrology.py）的真实 LLM 输出**不含 ok/summary**，而是各章节
+# 文本 + advice 数组（见 NATAL_SYSTEM / _forecast_system / SYNASTRY_SYSTEM / SR_SYSTEM）。
+# 故必须注册特化契约（required 对齐真实字段），否则一接 with_boundary 就全量 degraded。
+# 契约已注册 ≠ 已实时接入；实时接线在 astrology.py 三处调用点切换后生效。
+def _astro_schema(required: list) -> Dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "overview": {"type": "string", "minLength": 1},
+            "personality": {"type": "string"},
+            "love": {"type": "string"},
+            "career": {"type": "string"},
+            "health": {"type": "string"},
+            "compatibility": {"type": "string"},
+            "communication": {"type": "string"},
+            "conflict": {"type": "string"},
+            "advice": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+            "luckyNumbers": {"type": "array", "items": {"type": "number"}},
+            "luckyColors": {"type": "array", "items": {"type": "string"}},
+            "luckyDirection": {"type": "string"},
+        },
+        "required": required,
+        "additionalProperties": True,
+    }
+
+
+ASTRO_NATAL_SCHEMA = _astro_schema(["overview", "personality", "love", "career", "health", "advice"])
+ASTRO_FORECAST_SCHEMA = _astro_schema(["overview", "love", "career", "health", "advice"])
+ASTRO_SYNASTRY_SCHEMA = _astro_schema(["compatibility", "love", "advice"])
+ASTRO_SOLAR_RETURN_SCHEMA = _astro_schema(["overview", "personality", "love", "career", "health", "advice"])
+
+# 综合运势 / 每日塔罗（summary.py / tarot_daily.py）复用统一解读契约，实时接线留待后续服务。
 _ASTRO_MODULES = [
-    "astro_natal", "astro_synastry", "astro_solar_return",
     "horoscope_summary", "tarot_daily",
 ]
 
 MODULE_SCHEMAS: Dict[str, Dict[str, Any]] = {
     **{m: INTERPRET_OUTPUT_SCHEMA for m in _INTERPRET_MODULES},
     **{m: INTERPRET_OUTPUT_SCHEMA for m in _ASTRO_MODULES},
+    "astro_natal": ASTRO_NATAL_SCHEMA,
+    "astro_forecast": ASTRO_FORECAST_SCHEMA,
+    "astro_synastry": ASTRO_SYNASTRY_SCHEMA,
+    "astro_solar_return": ASTRO_SOLAR_RETURN_SCHEMA,
     "report": REPORT_WRITER_SCHEMA,
 }
 
