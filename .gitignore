@@ -6,38 +6,46 @@ __pycache__/
 build/
 dist/
 
-# è™šæ‹ŸçŽ¯å¢ƒ
+# ÐéÄâ»·¾³
 .venv/
 venv/
 
-# çŽ¯å¢ƒå˜é‡ï¼ˆå« API Key / å¯†é’¥ï¼Œç¦æ­¢æäº¤ï¼‰
+# »·¾³±äÁ¿£¨º¬ API Key / ÃÜÔ¿£¬½ûÖ¹Ìá½»£©
 .env
 .env.local
 .env.prod
 .env.*.local
-# æ³¨ï¼š.env.development / .env.production æ˜¯ã€ŒæŒ‰ APP_ENV åˆ†å‘çš„éžæ•æ„Ÿé»˜è®¤å€¼ã€ï¼Œ
-# å·²éšä»“åº“æäº¤ï¼ˆå…‹éš†å³ç”¨ï¼‰ã€‚å¯†é’¥ä¸€å¾‹èµ° Vercel é¢æ¿ï¼Œæˆ–æœ¬åœ° .envã€‚
+# ?? ÇÐÎðÐ´ ".env.*" Í¨Åä£ºÄÇ»á°Ñ .env.example / .env.development / .env.production
+#    Ò»ÆðºöÂÔµô¡£ÕâÈý¸öÊÇ¡¸°´ APP_ENV ·Ö·¢µÄ·ÇÃô¸ÐÄ¬ÈÏÖµ¡¹£¬°´ src/config.py Éè¼Æ
+#    Ó¦Ëæ²Ö¿âÌá½»£¨¿ËÂ¡¼´ÓÃ£©£»ÃÜÔ¿Ò»ÂÉ×ß Vercel Ãæ°å»ò±¾µØ .env¡£
+#    Ò»µ©Â©Ìá½»£¬Vercel ´Ó git À­È¡Ê±¾ÍÄÃ²»µ½·Ö²ãÅäÖÃ£¬config.py Ö»ÄÜ¾²Ä¬»ØÂä´úÂëÄ¬ÈÏÖµ
+#    £¨PAIPAN_API_BASE ±ä localhost:8000¡¢CORS Ö»Ê£ localhost¡¢RETRIEVAL_ENABLED ±ä true£©¡£
 
-# è¿è¡Œæ—¶æ•°æ®ï¼ˆç¼“å­˜ / é¢„ç®— / å‘é‡åº“ï¼Œå‡ä¸ºæœ¬åœ°äº§ç‰©ï¼‰
+# ÔËÐÐÊ±Êý¾Ý£¨»º´æ / Ô¤Ëã / ÏòÁ¿¿â£¬¾ùÎª±¾µØ²úÎï£©
 data/cache_store.json
 data/budget_store.json
 data/cache_store.tmp
 data/budget_store.tmp
 data/chroma/
 
-# æµ‹è¯•ä¸Žå·¥å…·
+# ²âÊÔÓë¹¤¾ß
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
 
-# æœåŠ¡æ—¥å¿—
+# ·þÎñÈÕÖ¾
 oj_*.log
 *.log
 
-# ä¸´æ—¶è„šæœ¬ï¼ˆ_ å‰ç¼€çš„ä¸€æ¬¡æ€§éªŒè¯è„šæœ¬ï¼‰
+# ÁÙÊ±½Å±¾£¨`_` Ç°×ºµÄÒ»´ÎÐÔÑéÖ¤½Å±¾£©
+# ?? ÇÐÎðÈ¥µôÏÂÃæÕâÐÐ·ñ¶¨¹æÔò£ºgitignore ÓïÒåÏÂ "_*.py" »áÁ¬ __init__.py Ò»ÆðÆ¥Åä£¬
+#    Ò»µ© __init__.py ±»ºöÂÔ£¬Vercel ´Ó git À­È¡µÄ²úÎïÀï¾ÍÃ»ÓÐËüÃÇ ¡ú
+#    src/ ÏÂËùÓÐ×Ó°üÍË»¯Îª namespace package£¬°üÄÚ³õÊ¼»¯¾²Ä¬Ê§Ð§
+#    £¨µäÐÍ±¨´í£ºImportError: cannot import name 'route_trace' from 'src.harness' (unknown location)£©¡£
 _*.py
+!**/__init__.py
 !scripts/
 
 # IDE
@@ -45,15 +53,9 @@ _*.py
 .vscode/
 *.swp
 
-# ç³»ç»Ÿ
+# ÏµÍ³
 .DS_Store
 Thumbs.db
 
-# ç”Ÿæˆç‰©å½’ä½ç›®å½•ï¼ˆæˆªå›¾/html/json/æ—¥å¿—ç­‰æœ¬åœ°äº§ç‰©ï¼Œå‹¿æäº¤ï¼›ä»¥åŽè¿™ç±»æ–‡ä»¶ç»Ÿä¸€æ”¾è¿™é‡Œï¼‰
+# Éú³ÉÎï¹éÎ»Ä¿Â¼£¨½ØÍ¼ / html / json / ÈÕÖ¾µÈ±¾µØ²úÎï£¬ÎðÌá½»£©
 outputs/
-
-# 2026-09-28 ´Ó°æ±¾¿ØÖÆÒÆ³ý env ÎÄ¼þ£¨±£Áô±¾µØ£»ÃÜÔ¿×ß Vercel Ãæ°å£©
-.env.example
-.env.development
-.env.production
-
