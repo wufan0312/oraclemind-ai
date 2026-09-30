@@ -16,9 +16,26 @@ from src.config import config
 from src.harness.observability.tracer import get_tracer
 
 
+# 已包装标记：挂到 provider 实例上，用于实现真正的幂等。
+_TRACED_FLAG = "_om_tracing_installed"
+
+
 def install_tracing(provider) -> None:
-    """给一个 LLMProvider 实例装上埋点。幂等（重复调用安全）。"""
+    """给一个 LLMProvider 实例装上埋点。幂等（重复调用安全）。
+
+    注意：这里必须把原始方法**先取出来存进局部变量**（_orig_stream / _orig_chat），
+    嵌套函数才能通过闭包拿到它们。若在嵌套函数里直接写裸名字（如 _orig_chat），
+    CPython 会按「全局名」解析 → NameError。历史上就因为这个漏捕获 _orig_chat，
+    导致 TRACE_ENABLED=true 时所有 provider.chat() 调用必抛
+    `name '_orig_chat' is not defined`（结构化解读全链路降级）。
+    """
+    # 幂等：已包装过就直接返回，避免重复包裹造成 span 重复计数 / 无限嵌套
+    if getattr(provider, _TRACED_FLAG, False):
+        return
+
     _orig_stream = provider.stream_messages
+    # chat 可能不存在（测试替身 / 精简 provider），用 getattr 兜底
+    _orig_chat = getattr(provider, "chat", None)
 
     async def traced_stream_messages(messages, *, temperature=0.7, max_tokens=2048, **kw):
         tracer = get_tracer()
@@ -125,6 +142,7 @@ def install_tracing(provider) -> None:
             raise
 
     provider.stream_messages = traced_stream_messages
-    # chat 可能不存在（如测试替身 / 精简 provider），存在时才包装
-    if hasattr(provider, "chat"):
+    if _orig_chat is not None:
         provider.chat = traced_chat
+
+    setattr(provider, _TRACED_FLAG, True)

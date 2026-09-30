@@ -169,7 +169,12 @@ def test_stream_event_sequence_and_shape(patched_summary):
     events = asyncio.run(_collect(interpret_summary_stream(result, "t1")))
 
     names = [e["event"] for e in events]
-    assert names == ["open", "init", "consensus", "cards", "advice", "summary", "meta", "done"]
+    # 顺序即前端渐进渲染契约（见 src/services/summary.py 顶部 docstring）：
+    # open → init → consensus → cards → advice → summary → keyFindings → divergences → meta → done
+    assert names == [
+        "open", "init", "consensus", "cards", "advice",
+        "summary", "keyFindings", "divergences", "meta", "done",
+    ]
 
     init = next(e["data"] for e in events if e["event"] == "init")
     assert init["ok"] is True
@@ -186,6 +191,12 @@ def test_stream_event_sequence_and_shape(patched_summary):
     summary = next(e["data"] for e in events if e["event"] == "summary")
     assert summary["summary"] == "整体向好"
     assert len(summary["timeline"]) == 3  # 单段输入被补齐到 3
+
+    # keyFindings / divergences 是 ok:true 分支新增的分段（降级态也有温和引导），必须是 list
+    key_findings = next(e["data"] for e in events if e["event"] == "keyFindings")
+    divergences = next(e["data"] for e in events if e["event"] == "divergences")
+    assert isinstance(key_findings, list)
+    assert isinstance(divergences, list)
 
 
 def test_stream_ok_false_no_sections(patched_summary):

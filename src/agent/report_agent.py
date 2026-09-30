@@ -655,7 +655,6 @@ async def _run_report_agent_inner(
 
     # 1. analyzer（规则化选术数，零成本）
     modules = select_modules(question)
-    mark_phase("analyzer", meta={"modules": modules, "crossLabels": cross_labels})
     # 跨页已有数字命理结论时不再重复排盘：跨页结论含姓名核心数字，信息比无姓名的排盘更全
     if "numerology" in cross_types:
         modules = [m for m in modules if m != "numerology"]
@@ -664,6 +663,10 @@ async def _run_report_agent_inner(
     # 排盘已覆盖的术数，跳过同名跨页结论（否则前端 chips 会出现两条「数字命理」）
     cross = [c for c in cross if c["label"] not in module_labels]
     cross_labels = [c["label"] for c in cross]
+
+    # ⚠️ 必须在 cross_labels 计算之后调用：它读的 cross_labels 是本函数局部变量，
+    #    放在赋值之前会抛 UnboundLocalError，整条报告链路在首个事件前就崩。
+    mark_phase("analyzer", meta={"modules": modules, "crossLabels": cross_labels})
 
     yield {"event": "open", "data": {}}
 

@@ -29,6 +29,24 @@
           修复：`_*.py` 后追加否定规则 `!**/__init__.py`。
           （同理 .env.development / .env.production 这类非敏感默认值也必须入库。）
 
+  坑 4 · 运行时名字解析错误（2026-09-30 三次事故，同一类）
+    现象：服务终于起来了（HTTP 200），但业务全链路降级、日志里刷警告。两次实例：
+          ① `name '_orig_chat' is not defined`
+             src/harness/observability/patch.py 的 traced_chat 里裸写了 _orig_chat，
+             但 install_tracing 只捕获了 _orig_stream，漏了 _orig_chat。
+             CPython 把该名字按「全局名」解析 → NameError。
+             TRACE_ENABLED 默认 True，故 provider.chat() 的 6 个调用点全挂
+             （summary/stream、interpret、poster 一起降级）。
+          ② `cannot access local variable 'cross_labels'`
+             src/agent/report_agent.py 的 mark_phase(...) 用了 cross_labels，
+             而 cross_labels 在 8 行之后才赋值 → UnboundLocalError，报告链路
+             在首个事件前就崩。
+    根因：这两类错（F821 未定义名 / 局部变量先读后写）**只在被执行到时才炸**，
+          单测覆盖不到就没信号；解释器不执行也不报错。本地同样会炸，只是没人跑那条分支。
+    修复：把原始方法先捕获进局部变量（闭包），并把 cross_labels 的计算提到使用之前。
+    防复发：本脚本新增 [4/4] 静态名字解析（symtable + dis，纯标准库），
+          在部署前静态扫出「未定义全局名」与「局部变量赋值前被读取」。
+
 用法：
     python scripts/check_deps.py            # 默认检查当前目录
     python scripts/check_deps.py <项目根>
@@ -38,9 +56,48 @@
 from __future__ import annotations
 
 import ast
+import dis
 import fnmatch
 import pathlib
+import symtable
 import sys
+
+# 解释器注入的模块级名字（symtable 里看不到，须白名单）
+_BUILTIN_EXTRA = {
+    "__name__", "__file__", "__doc__", "__builtins__", "__package__",
+    "__spec__", "__loader__", "__annotations__", "__debug__", "__class__",
+    "__dict__", "WindowsError",
+}
+
+# 读取局部变量但会「先读后写」的合法场景很少，这里只认真正的读取指令。
+#
+# ⚠️ CPython 3.13 起有「超级指令」：一条 opcode 同时操作两个名字，argval 是元组，
+#    例如 `_build(parsed, rid, ...)` → LOAD_FAST_LOAD_FAST ('parsed','rid')、
+#    `a, b = f()` → STORE_FAST_STORE_FAST ('a','b')。
+#    因此必须用「前缀匹配 + 元组展开」，不能精确比对单一 opcode 名。
+def _classify(op: str, argval):
+    """把一条指令拆成 (写入的局部名, 读取的局部名, 读取的全局名)。
+
+    LOAD_FAST_AND_CLEAR 是内联推导式用来暂存外层变量的，不算读取。
+    """
+    names = argval if isinstance(argval, tuple) else (argval,)
+    writes: tuple[str, ...] = ()
+    reads: tuple[str, ...] = ()
+    globals_: tuple[str, ...] = ()
+
+    if op == "LOAD_FAST_AND_CLEAR":
+        return writes, reads, globals_
+    if op == "STORE_FAST_LOAD_FAST":
+        return (names[0],), (names[1],), globals_
+    if op == "STORE_FAST_STORE_FAST":
+        return names, reads, globals_
+    if op.startswith("STORE_FAST") or op.startswith("DELETE_FAST"):
+        return names, reads, globals_
+    if op.startswith("LOAD_FAST"):
+        return writes, names, globals_
+    if op.startswith("LOAD_GLOBAL"):
+        return writes, reads, names
+    return writes, reads, globals_
 
 # 导入名 ≠ 包名 的常见映射（导入名 -> PyPI 包名）
 ALIAS = {
@@ -241,13 +298,117 @@ def check_git_tracked(root: pathlib.Path) -> list[str]:
     return bad
 
 
+def _arg_names(code) -> set[str]:
+    """形参名（含 *args / **kwargs）：它们由调用方传入，天然已绑定。"""
+    import inspect
+
+    n = code.co_argcount + code.co_kwonlyargcount
+    if code.co_flags & inspect.CO_VARARGS:
+        n += 1
+    if code.co_flags & inspect.CO_VARKEYWORDS:
+        n += 1
+    return set(code.co_varnames[:n])
+
+
+def _scan_code(code, rel: str, module_names: set[str], builtins_ok: set[str],
+               issues: list[str], is_module_code: bool) -> None:
+    """按字节码指令顺序，扫出「未定义名」与「局部变量先读后写」。"""
+    args = _arg_names(code)
+    # ⚠️ 3.11+ 移除了 LOAD_CLOSURE：构造闭包时用 LOAD_FAST 加载「cell 对象本身」，
+    #    那不是取值读取。cell/free 变量的取值走 LOAD_DEREF，故整类跳过。
+    cells = set(code.co_cellvars) | set(code.co_freevars)
+    stored: set[str] = set()
+
+    for ins in dis.get_instructions(code):
+        # 3.11+ 才有逐指令精确行号；starts_line 在 3.13 已变成布尔语义，不可用
+        line = getattr(ins, "positions", None)
+        line = line.lineno if line else None
+        writes, reads, globs = _classify(ins.opname, ins.argval)
+        if cells:
+            writes = tuple(n for n in writes if n not in cells)
+            reads = tuple(n for n in reads if n not in cells)
+
+        for name in writes:
+            stored.add(name)
+        for name in reads:
+            if name not in stored and name not in args:
+                issues.append(
+                    f"{rel}:{line}: 局部变量 {name!r} 在赋值前被读取 → 触发时 UnboundLocalError"
+                )
+        for name in globs:
+            if name not in module_names and name not in builtins_ok:
+                issues.append(
+                    f"{rel}:{line}: 名字 {name!r} 未定义（模块级与内置都没有）→ NameError"
+                )
+        if is_module_code and ins.opname.startswith("LOAD_NAME"):
+            for name in (ins.argval if isinstance(ins.argval, tuple) else (ins.argval,)):
+                if name not in module_names and name not in builtins_ok:
+                    issues.append(
+                        f"{rel}:{line}: 名字 {name!r} 未定义（模块级与内置都没有）→ NameError"
+                    )
+
+    # 内嵌函数 / 推导式 / 类体各自是独立 code object，需递归
+    for const in code.co_consts:
+        if hasattr(const, "co_code"):
+            _scan_code(const, rel, module_names, builtins_ok, issues, False)
+
+
+def _module_bindings(st: symtable.SymbolTable) -> set[str]:
+    """模块顶层所有被绑定过的名字（导入 / 赋值 / def / class / 形参）。"""
+    names: set[str] = set()
+    for sym in st.get_symbols():
+        if sym.is_imported() or sym.is_assigned() or sym.is_namespace() or sym.is_parameter():
+            names.add(sym.get_name())
+    return names
+
+
+def check_names(root: pathlib.Path) -> list[str]:
+    """坑 4 专项：静态扫「未定义名 / 局部变量先读后写」。
+
+    这两类错只在对应分支被执行时才炸（本地同样会炸），解释器不执行不报错，
+    单测覆盖不到就没信号 —— 本检查不需要运行代码，源文件级别就能拦下。
+    """
+    import builtins
+
+    builtins_ok = set(dir(builtins)) | _BUILTIN_EXTRA
+    issues: list[str] = []
+
+    for p in sorted(root.rglob("*.py")):
+        rel = p.relative_to(root).as_posix()
+        if any(part in SKIP_DIRS for part in p.relative_to(root).parts):
+            continue
+        try:
+            src = p.read_text(encoding="utf-8-sig")
+            st = symtable.symtable(src, str(p), "exec")
+            code = compile(src, str(p), "exec")
+        except (SyntaxError, UnicodeDecodeError, ValueError) as e:
+            print(f"  [警告] 无法静态解析 {rel}: {e}")
+            continue
+
+        # `from x import *` 会注入无法静态枚举的名字，跳过该文件的全局名检查
+        has_star_import = any(
+            isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names)
+            for node in ast.walk(ast.parse(src))
+        )
+        module_names = _module_bindings(st)
+
+        file_issues: list[str] = []
+        _scan_code(code, rel, module_names, builtins_ok, file_issues, True)
+        if has_star_import:
+            # 星号导入会注入无法枚举的名字，只保留局部变量检查，避免误报
+            file_issues = [i for i in file_issues if "UnboundLocalError" in i]
+        issues.extend(file_issues)
+
+    return issues
+
+
 def main() -> int:
     root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     print(f"自查目录: {root}\n")
 
     ok = True
 
-    print("[1/3] 依赖声明完整性（源码 import 是否都在 requirements/pyproject 里）")
+    print("[1/4] 依赖声明完整性（源码 import 是否都在 requirements/pyproject 里）")
     missing = check_deps(root)
     if missing:
         ok = False
@@ -258,7 +419,7 @@ def main() -> int:
     else:
         print("  ✅ 通过")
 
-    print("\n[2/3] .vercelignore 排除规则（源码是否被误排除）")
+    print("\n[2/4] .vercelignore 排除规则（源码是否被误排除）")
     bad = check_vercelignore(root)
     if bad:
         ok = False
@@ -268,7 +429,7 @@ def main() -> int:
     else:
         print("  ✅ 通过")
 
-    print("\n[3/3] .gitignore 排除规则（Vercel 产物 = git 仓库，被忽略即线上缺失）")
+    print("\n[3/4] .gitignore 排除规则（Vercel 产物 = git 仓库，被忽略即线上缺失）")
     gitbad = check_git_tracked(root)
     if gitbad:
         ok = False
@@ -276,6 +437,18 @@ def main() -> int:
         for b in gitbad:
             print(f"     - {b}")
         print("  → 加否定规则（如 `!**/__init__.py`）或从 .gitignore 移除过宽通配")
+    else:
+        print("  ✅ 通过")
+
+    print("\n[4/4] 静态名字解析（未定义名 / 局部变量先读后写，只在执行到才炸）")
+    namebad = check_names(root)
+    if namebad:
+        ok = False
+        print(f"  ❌ 发现 {len(namebad)} 处运行期才会暴露的名字错误：")
+        for b in namebad:
+            print(f"     - {b}")
+        print("  → 未定义名：补上定义，或把外层变量先捕获进局部变量再用")
+        print("  → 先读后写：把赋值语句挪到首次使用之前")
     else:
         print("  ✅ 通过")
 
