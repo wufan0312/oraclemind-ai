@@ -61,7 +61,12 @@ async def route_trace(
     trace_id = f"tr_{uuid.uuid4().hex[:20]}"
     tracer = Tracer(trace_id, meta=meta or {})
     token = set_tracer(tracer)
+    # 自动标记顶层阶段，使所有经 route_trace 的 agent 至少有一个横向可比的 trace 节点，
+    # 无需逐个业务 agent 内部调用 mark_phase（业务内部仍可在其上追加 analyzer/paipan...）。
+    scope = (meta or {}).get("agent") or (meta or {}).get("module") or "unknown"
+    kind = (meta or {}).get("kind") or "agent"
     try:
+        tracer.mark_phase(f"{kind}:{scope}")
         async for ev in trace_sse(gen, trace_id, tracer):
             yield ev
     finally:

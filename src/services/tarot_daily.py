@@ -20,6 +20,7 @@ from src.services.budget import (
     cache_get, cache_set, make_cache_key,
 )
 from src.services.structured import generate_structured
+from src.harness.quality.hook import maybe_quality_check
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,8 @@ async def interpret_daily_tarot(result: dict, request_id: Optional[str] = None) 
     parsed, err, tokens, provider, model = await generate_structured(
         prompt.system, user_msg, temperature=prompt.temperature, max_tokens=prompt.max_tokens, retries=1
     )
+    if parsed is not None:
+        maybe_quality_check("tarot_daily", json.dumps(parsed, ensure_ascii=False))
     if err:
         return _build(_fallback(result), rid, prompt.version, start, True, err, tokens, provider, model)
 

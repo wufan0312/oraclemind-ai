@@ -123,8 +123,21 @@ _INTERPRET_MODULES = [
     "numerology", "tarot", "dream", "fengshui", "angel",
 ]
 
+# 西方占星 / 综合运势 / 每日塔罗（src/services/astrology.py、summary.py、tarot_daily.py）。
+# 这些服务的 LLM 输出结构各异（合盘含 compatibility/love、返照含 overview/personality、
+# 每日塔罗含 cards/energy），但均含 ok/summary 基础字段，故复用宽松契约（required 仅
+# ok/summary + additionalProperties=true），消除 BoundaryValidator 的「未注册模块」障碍。
+# 注：契约已注册 ≠ 已实时接入；实时接线（generate_structured →
+# generate_structured_with_boundary）需逐个服务的 LLM 输出回归验证后切换，避免无契约/错契约
+# 下全量 degraded（见 2026-09-29 harness 审查 #1）。
+_ASTRO_MODULES = [
+    "astro_natal", "astro_synastry", "astro_solar_return",
+    "horoscope_summary", "tarot_daily",
+]
+
 MODULE_SCHEMAS: Dict[str, Dict[str, Any]] = {
     **{m: INTERPRET_OUTPUT_SCHEMA for m in _INTERPRET_MODULES},
+    **{m: INTERPRET_OUTPUT_SCHEMA for m in _ASTRO_MODULES},
     "report": REPORT_WRITER_SCHEMA,
 }
 

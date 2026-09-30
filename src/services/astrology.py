@@ -26,6 +26,7 @@ from pymeeus.Epoch import Epoch
 
 from src.config import config
 from src.services.structured import generate_structured
+from src.harness.quality.hook import maybe_quality_check
 from src.services.budget import budget_broken, record_cost, estimate_cost, cache_get, cache_set
 
 logger = logging.getLogger(__name__)
@@ -917,6 +918,8 @@ async def interpret_astrology(
     parsed, err, tokens, provider, model = await generate_structured(
         system, user, temperature=0.75, max_tokens=1500, retries=1
     )
+    if parsed is not None:
+        maybe_quality_check("astro_natal", json.dumps(parsed, ensure_ascii=False))
     if parsed is None:
         fb = _local_natal(chart) if atype == "natal" else _local_forecast(chart, period)
         return {
@@ -1168,6 +1171,8 @@ async def interpret_synastry(birth1: dict, birth2: dict, house_system: str = "eq
     parsed, err, tokens, provider, model = await generate_structured(
         SYNASTRY_SYSTEM, user, temperature=0.75, max_tokens=1500, retries=1
     )
+    if parsed is not None:
+        maybe_quality_check("astro_synastry", json.dumps(parsed, ensure_ascii=False))
     if parsed is None:
         syn["disclaimer"] = DISCLAIMER
         syn["meta"] = _base_meta(request_id, "synastry", "", start,

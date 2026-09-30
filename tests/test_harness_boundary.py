@@ -157,64 +157,8 @@ def test_integration_retry_on_boundary_fail():
 
 
 # ============================ backend tool-gateway ============================
-def _load_backend_gateway():
-    here = os.path.dirname(os.path.abspath(__file__))
-    path = os.path.normpath(
-        os.path.join(here, "..", "..", "oraclemind-backend", "app", "harness", "tool_gateway.py")
-    )
-    spec = importlib.util.spec_from_file_location("bk_tool_gateway", path)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["bk_tool_gateway"] = mod  # 注册后 dataclass 才能解析 __module__
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def test_backend_gateway_blocks_unregistered():
-    gw_mod = _load_backend_gateway()
-    gw = gw_mod.ToolGateway()
-    try:
-        gw.dispatch("evil", {"x": 1})
-        raise AssertionError("应拒绝未注册工具")
-    except gw_mod.ToolGatewayError:
-        pass
-
-
-def test_backend_gateway_validates_params():
-    gw_mod = _load_backend_gateway()
-    gw = gw_mod.ToolGateway()
-    gw.register(
-        gw_mod.ToolSpec(
-            name="bazi_calc",
-            handler=lambda birth: f"calc:{birth}",
-            param_schema={"type": "object", "properties": {"birth": {"type": "string"}}, "required": ["birth"]},
-        )
-    )
-    try:
-        gw.dispatch("bazi_calc", {})
-        raise AssertionError("缺参应被拦截")
-    except gw_mod.ToolGatewayError as e:
-        assert "入参校验失败" in str(e)
-    assert gw.dispatch("bazi_calc", {"birth": "1990-01-01"}) == "calc:1990-01-01"
-
-
-def test_backend_gateway_requires_approval():
-    gw_mod = _load_backend_gateway()
-    gw = gw_mod.ToolGateway()
-    gw.register(
-        gw_mod.ToolSpec(
-            name="paid_report",
-            handler=lambda user_id: f"paid:{user_id}",
-            param_schema={"type": "object", "properties": {"user_id": {"type": "string"}}, "required": ["user_id"]},
-            risk="high",
-            requires_approval=True,
-        )
-    )
-    try:
-        gw.dispatch("paid_report", {"user_id": "u1"})
-        raise AssertionError("未审批应被拦截")
-    except gw_mod.ToolGatewayError as e:
-        assert "approval" in str(e)
-    assert gw.dispatch("paid_report", {"user_id": "u1"}, approved=True) == "paid:u1"
+# 注：原 backend app/harness/tool_gateway.py 经 2026-09-29 审查确认为孤立死代码
+# （全仓库无调用方），已从 oraclemind-backend 删除；对应网关测试一并移除。
 
 
 if __name__ == "__main__":
