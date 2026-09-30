@@ -39,3 +39,6 @@ aiohttp>=3.9.0
 # 天文星历：src/services/astrology.py 用它做本命盘实算
 # （纯 Python 天文算法，无需外部星历文件、离线可用；模块级 import，缺则冷启动即崩）
 PyMeeus>=0.5.12
+
+# 可选：observability 冷存储（仅当 TRACE_PG_DSN 配置时惰性 import，未配置则跳过）
+asyncpg>=0.29.0

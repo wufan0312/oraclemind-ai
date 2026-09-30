@@ -34,6 +34,8 @@ dependencies = [
 
     # 天文星历（占星模块本命盘实算，纯 Python、离线可用）
     "PyMeeus>=0.5.12",
+    # 可选：observability 冷存储（TRACE_PG_DSN 配置时惰性 import）
+    "asyncpg>=0.29.0",
 ]
 
 [project.optional-dependencies]
