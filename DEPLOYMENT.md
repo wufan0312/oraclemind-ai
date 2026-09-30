@@ -53,10 +53,14 @@ Vercel 把 `/api/*` 交给 `api/index.py` 时携带完整路径（含 `/api`）�
 **缓解手段（任选）：**
 1. **推荐：AI 服务不放 Vercel。** 部署到支持持久盘、无 500MB 硬限制的主机
    （Railway / Render / Fly.io / 自有 VM），`.env` 配好即可，无需改代码。前端 `NEXT_PUBLIC_AI_API_BASE` 指向该域名。
-2. **关闭 RAG：** 在 Vercel 环境变量设 `RETRIEVAL_ENABLED=false`，解读将跳过检索增强（仍走 LLM + 本地规则兜底）。
-   注意：`chromadb` 仍会被 `requirements.txt` 安装（因为代码里 `import chromadb` 是惰性导入，
-   仅当 RAG 实际触发时才 import；但包仍在依赖列表里）。要彻底避免安装它，需把 `requirements.txt`
-   拆成 Vercel 专用版（去掉 chromadb），这属于进阶操作，按需再做。
+2. **关闭 RAG（已默认）：** 在 Vercel 环境变量设 `RETRIEVAL_ENABLED=false`（`.env.production` 已置）。
+   **`chromadb` 已从 `requirements.txt` 移出**（改放 `requirements-rag.txt`）—— 因为其传递依赖
+   实测 400MB+（kubernetes + onnxruntime + chromadb_rust_bindings + numpy），会撑爆 Vercel 函数
+   体积上限（Hobby 未压缩约 250MB），表现为部署/函数加载失败 `FUNCTION_INVOCATION_FAILED`。
+   代码里 `import chromadb` 本就是惰性 + `try/except`（`src/services/retrieval.py:get_collection()`），
+   缺包时 RAG 静默降级为空检索。
+   → **Vercel 默认部署已天然不装 chromadb，无需改 Install Command。**
+   本地 / 需要 RAG 时：`pip install -r requirements-rag.txt`。
 3. **精简：** 用 `vercel.json` 的 `excludeFiles` 剔除非运行文件（已配置），并在 Vercel 选 Pro 计划放宽限制。
 
 ### 3.2 持久化风险（只读文件系统）

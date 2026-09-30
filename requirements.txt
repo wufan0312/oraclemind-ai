@@ -23,8 +23,13 @@ langchain-openai>=1.0
 langchain-core>=1.0
 langgraph>=1.0
 
-# RAG 向量数据库（RAG 开启时必需；关闭 RETRIEVAL_ENABLED 可省去其运行时负担）
-chromadb>=0.5.0
+# RAG 向量数据库（chromadb）—— 故意不在此文件，改放 requirements-rag.txt。
+# 原因：chromadb 的传递依赖体积巨大（kubernetes ~84MB + onnxruntime ~45MB +
+#   chromadb_rust_bindings ~61MB + numpy ~55MB，实测合计 400MB+），会撑爆 Vercel
+#   函数体积上限（Hobby 未压缩约 250MB）→ 部署/函数加载失败（FUNCTION_INVOCATION_FAILED）。
+# 本仓 chromadb 为惰性 + 容错导入（src/services/retrieval.py: get_collection() 的 try/except），
+#   缺包时 RAG 静默降级为空检索，不影响其余全部解读能力。
+# 本地 / 需要 RAG 时：pip install -r requirements-rag.txt
 
 # 工具库
 pydantic>=2.0
