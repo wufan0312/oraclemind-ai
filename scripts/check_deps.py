@@ -18,6 +18,17 @@
           一起匹配 —— 一行规则把 src/ 下 7 个 __init__.py 全排除了。
           临时脚本已统一放 scripts/，不需要这条规则。
 
+  坑 3 · .gitignore 规则连坐（2026-09-30 二次事故）
+    现象：Vercel Runtime Logs 报
+          ImportError: cannot import name 'route_trace' from 'src.harness' (unknown location)
+    根因：与坑 2 同一行 `_*.py`，但残留在 **.gitignore** 里（坑 2 只修了 .vercelignore）。
+          Vercel 走 Git 集成部署，产物 = git 仓库内容；被 .gitignore 排除的文件
+          **根本不在产物里**。本地磁盘上有 → import 正常；线上没有 → 全部子包
+          退化为 namespace package（报错里的 `(unknown location)` 即此意），
+          包内 __init__ 副作用（如 src/harness/__init__.py 导出的 route_trace）静默失效。
+          修复：`_*.py` 后追加否定规则 `!**/__init__.py`。
+          （同理 .env.development / .env.production 这类非敏感默认值也必须入库。）
+
 用法：
     python scripts/check_deps.py            # 默认检查当前目录
     python scripts/check_deps.py <项目根>
@@ -166,13 +177,77 @@ def check_vercelignore(root: pathlib.Path) -> list[str]:
     return bad
 
 
+# 必须入库的「非敏感分层默认值」env 文件（缺则线上静默回落代码默认值）
+REQUIRED_ENV_FILES = (".env.example", ".env.development", ".env.production")
+
+# 有意忽略、不得入库的 env（含密钥 / 个人本地兜底）
+INTENTIONALLY_IGNORED_ENV = {".env", ".env.local", ".env.prod"}
+
+
+def _git(root: pathlib.Path, *args: str) -> list[str] | None:
+    """执行 git 子命令并返回非空行；非 git 仓库或命令失败返回 None。"""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "-C", str(root), *args],
+                             check=True, capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return [l for l in out.stdout.splitlines() if l.strip()]
+
+
+def check_git_tracked(root: pathlib.Path) -> list[str]:
+    """坑 3 专项：Vercel 走 Git 集成部署，产物 = git 仓库内容。
+
+    因此「磁盘上有、但被 .gitignore 排除」的文件在生产里根本不存在 ——
+    本地 import 正常、线上必崩，且报错不含文件名（只报 unknown location），极难定位。
+    此处模拟该场景：列出被 .gitignore 忽略的源码 / 必备文件。
+    """
+    if _git(root, "rev-parse", "--is-inside-work-tree") is None:
+        return []  # 非 git 仓库，跳过（不影响其它检查）
+
+    ignored = set(_git(root, "ls-files", "--others", "--ignored",
+                       "--exclude-standard") or [])
+    if not ignored:
+        return []
+
+    bad: list[str] = []
+
+    # 1) 包结构完整性：所有 __init__.py 都不允许被忽略（否则子包退化）
+    for rel in sorted(ignored):
+        parts = rel.split("/")
+        if any(part in SKIP_DIRS for part in parts):
+            continue
+        if parts[-1] == "__init__.py":
+            bad.append(f"{rel:<44} 被 .gitignore 排除 → 子包退化为 namespace package")
+
+    # 2) src/ 下被忽略的源码文件（线上会缺文件，ModuleNotFoundError / 静默降级）
+    for rel in sorted(ignored):
+        parts = rel.split("/")
+        if any(part in SKIP_DIRS for part in parts):
+            continue
+        if rel.startswith("src/") and rel.endswith(".py") and parts[-1] != "__init__.py":
+            bad.append(f"{rel:<44} 被 .gitignore 排除 → 线上缺源码文件")
+
+    # 3) 必备的非敏感分层 env 默认值
+    for name in REQUIRED_ENV_FILES:
+        if (root / name).exists() and name in ignored:
+            bad.append(f"{name:<44} 被 .gitignore 排除 → 线上回落代码默认值（如 localhost）")
+
+    # 4) 反例断言：含密钥的 .env 必须保持被忽略，否则有泄密风险
+    for name in sorted(INTENTIONALLY_IGNORED_ENV):
+        if (root / name).exists() and name not in ignored:
+            bad.append(f"{name:<44} 未被忽略 → 密钥有入库泄露风险，请检查 .gitignore")
+
+    return bad
+
+
 def main() -> int:
     root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     print(f"自查目录: {root}\n")
 
     ok = True
 
-    print("[1/2] 依赖声明完整性（源码 import 是否都在 requirements/pyproject 里）")
+    print("[1/3] 依赖声明完整性（源码 import 是否都在 requirements/pyproject 里）")
     missing = check_deps(root)
     if missing:
         ok = False
@@ -183,13 +258,24 @@ def main() -> int:
     else:
         print("  ✅ 通过")
 
-    print("\n[2/2] .vercelignore 排除规则（源码是否被误排除）")
+    print("\n[2/3] .vercelignore 排除规则（源码是否被误排除）")
     bad = check_vercelignore(root)
     if bad:
         ok = False
         print(f"  ❌ 发现 {len(bad)} 个源码文件被排除（线上缺文件 / 包结构退化）：")
         for b in bad:
             print(f"     - {b}")
+    else:
+        print("  ✅ 通过")
+
+    print("\n[3/3] .gitignore 排除规则（Vercel 产物 = git 仓库，被忽略即线上缺失）")
+    gitbad = check_git_tracked(root)
+    if gitbad:
+        ok = False
+        print(f"  ❌ 发现 {len(gitbad)} 个必要文件被 .gitignore 排除（本地能跑、线上必崩）：")
+        for b in gitbad:
+            print(f"     - {b}")
+        print("  → 加否定规则（如 `!**/__init__.py`）或从 .gitignore 移除过宽通配")
     else:
         print("  ✅ 通过")
 
