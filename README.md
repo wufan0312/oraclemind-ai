@@ -88,7 +88,7 @@ python scripts/ai_server.py status   # 查看运行状态（pidfile + 端口 + �
 
 ```bash
 # 必填
-AI_API_KEY=你的智谐密钥
+AI_API_KEY=你的智谱密钥
 AI_PROVIDER=zhipu
 AI_MODEL_CHAT=glm-4-flash
 AI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
